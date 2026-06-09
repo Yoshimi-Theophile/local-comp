@@ -1,3 +1,5 @@
+(*
+
 (** Global scoping
 
   It tracks whether [c] in [const c ξ] always points to [Σ].
@@ -91,3 +93,5 @@ Lemma equations_typing_gscope Σ Ξ R :
 Proof.
   eauto using Forall_impl, equation_typing_gscope.
 Qed.
+
+ *)

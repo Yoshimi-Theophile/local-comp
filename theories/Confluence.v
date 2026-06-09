@@ -1,3 +1,5 @@
+(*
+
 (** * Generic results about confluence
 
   Heavily inspired from MetaRocq's proofs.
@@ -126,3 +128,5 @@ Proof.
   intros x y. split. 1: eauto.
   intro. apply Operators_Properties.clos_rt_idempotent. auto.
 Qed.
+
+ *)

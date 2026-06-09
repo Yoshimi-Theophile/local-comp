@@ -1,3 +1,5 @@
+(*
+
 (** Inlining
 
   Here we prove one of the main results about our theory: that it is a
@@ -638,3 +640,6 @@ Proof.
   eapply typing_gscope in hA as gA. eapply inline_nil_id in gA.
   rewrite gA in ht. eassumption.
 Qed.
+
+ *)
+

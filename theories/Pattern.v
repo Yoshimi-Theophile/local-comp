@@ -1,3 +1,5 @@
+(*
+
 (** * Patterns
 
   We provide a notion of pattern as well as ways to verify the criteria
@@ -1352,3 +1354,6 @@ Proof.
   - intros ??. apply pred_red. assumption.
   - apply pred_confluence. assumption.
 Qed.
+
+ *)
+

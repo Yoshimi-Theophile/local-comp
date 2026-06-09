@@ -1,3 +1,5 @@
+(*
+
 (** Reduction
 
   We define reduction for the language as a way to study decidability of
@@ -946,3 +948,5 @@ Section Injectivity.
   Qed.
 
 End Injectivity.
+
+ *)

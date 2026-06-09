@@ -1,3 +1,5 @@
+(*
+
 (** Inversion of typing *)
 
 From Stdlib Require Import Utf8 String List Arith Lia.
@@ -126,3 +128,5 @@ Ltac ttinv h h' :=
     | assm _ => eapply type_assm_inv in h as h'
     end
   end.
+
+ *)

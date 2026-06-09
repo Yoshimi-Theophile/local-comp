@@ -1,3 +1,5 @@
+(*
+
 (** * Interface scoping
 
   It tracks whether [x] in [assm x] always points to [Ξ].
@@ -171,3 +173,5 @@ Proof.
   rewrite nth_error_app1. 2: lia.
   reflexivity.
 Qed.
+
+ *)

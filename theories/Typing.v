@@ -18,12 +18,13 @@ Open Scope subst_scope.
 Fixpoint scoped n t :=
   match t with
   | var m => m <? n
-  | Sort _ => true
+  | Typ _ => true
+  | PTyp _ => true
+                
   | Pi A B => scoped n A && scoped (S n) B
   | lam A t => scoped n A && scoped (S n) t
   | app u v => scoped n u && scoped n v
-  | const c ξ => forallb (onSomeb (scoped n)) ξ
-  | assm x => true
+
   end.
 
 Notation closed t := (scoped 0 t).
@@ -34,117 +35,14 @@ Notation scoped_instance k ξ :=
 Notation closed_instance ξ :=
   (scoped_instance 0 ξ).
 
-(** ** Instance scoping (see IScope) *)
-
-Section iscope.
-
-  Context (Ξ : ictx).
-
-  Inductive iscope : term → Prop :=
-  | iscope_var x : iscope (var x)
-  | iscope_sort i : iscope (Sort i)
-  | iscope_pi A B : iscope A → iscope B → iscope (Pi A B)
-  | iscope_lam A t : iscope A → iscope t → iscope (lam A t)
-  | iscope_app u v : iscope u → iscope v → iscope (app u v)
-  | iscope_const c ξ :
-      Forall (OnSome (iscope)) ξ →
-      iscope (const c ξ)
-  | iscope_assm x A :
-      ictx_get Ξ x = Some (Assm A) →
-      iscope (assm x).
-Derive Signature for iscope.
-Derive NoConfusion for term.
-End iscope.
-
-Notation iscope_instance Ξ ξ := (Forall (OnSome (iscope Ξ)) ξ).
-
-(** ** Global scoping (see GScope) *)
-
-Inductive gscope (Σ : gctx) : term → Prop :=
-| gscope_var x : gscope Σ (var x)
-| gscope_sort i : gscope Σ (Sort i)
-| gscope_pi A B : gscope Σ A → gscope Σ B → gscope Σ (Pi A B)
-| gscope_lam A t : gscope Σ A → gscope Σ t → gscope Σ (lam A t)
-| gscope_app u v : gscope Σ u → gscope Σ v → gscope Σ (app u v)
-| gscope_const c ξ Ξ' A t :
-    Σ c = Some (Def Ξ' A t) →
-    Forall (OnSome (gscope Σ)) ξ →
-    gscope Σ (const c ξ)
-| gscope_assm x : gscope Σ (assm x).
-
-Notation gscope_instance Σ ξ := (Forall (OnSome (gscope Σ)) ξ).
-
-Definition gscope_crule Σ rule :=
-  Forall (gscope Σ) rule.(cr_env) ∧
-  gscope Σ rule.(cr_pat) ∧
-  gscope Σ rule.(cr_rep) ∧
-  gscope Σ rule.(cr_typ).
-
-Section Typing.
-
 Reserved Notation "Γ ⊢ t : A"
+  (at level 80, t, A at next level).
+
+Reserved Notation "Γ ⊨ t : A"
   (at level 80, t, A at next level).
 
 Reserved Notation "u ≡ v"
   (at level 80).
-
-Context (Σ : gctx) (Ξ : ictx).
-
-Section InstTyping.
-
-  Context (conversion : term → term → Prop).
-
-  Notation "u ≡ v" := (conversion u v) (at level 80).
-
-
-  Context (typing : term → term → Prop).
-
-  Notation "Γ ⊢ u : A" := (typing u A) (only parsing).
-  Local Set Elimination Schemes.
-  Inductive inst_typing_ : instance → ictx → Prop :=
-  | inst_typing_nil : inst_typing_ [] []
-  | inst_typing_comp Ξ' ξ rl :
-      inst_typing_ ξ Ξ' →
-      let m := length rl.(cr_env) in
-      (* let Θ := ctx_inst ξ rl.(cr_env) in *)
-      let lhs := inst (liftn m ξ) rl.(cr_pat) in
-      let rhs := inst (liftn m ξ) rl.(cr_rep) in
-      scoped m rl.(cr_pat) = true →
-      iscope Ξ' rl.(cr_pat) →
-      scoped m rl.(cr_rep) = true →
-      iscope Ξ' rl.(cr_rep) →
-      (* Γ ,,, Θ ⊢ *) lhs ≡ rhs →
-      inst_typing_ (ξ ++ [None]) (Comp rl :: Ξ')
-  | inst_typing_assm Ξ' ξ A u :
-      inst_typing_ ξ Ξ' →
-      iscope Ξ' A →
-      closed A = true →
-      Γ ⊢ u : inst ξ A →
-      inst_typing_ (ξ ++ [Some u]) (Assm A :: Ξ').
-  Derive Signature for inst_typing_.
-
-End InstTyping.
-
-(** Checking that an instance verifies the necessary equations *)
-Section Equations.
-
-  Context (conversion : term → term → Prop).
-
-  Notation "u ≡ v" := (conversion u v) (at level 80).
-
-  Definition inst_equations_ (ξ : instance) (Ξ' : ictx) :=
-    ∀ x rl,
-      ictx_get Ξ' x = Some (Comp rl) →
-      let m := length rl.(cr_env) in
-      (* let Θ := ctx_inst ξ rl.(cr_env) in *)
-      let lhs := inst (liftn m ξ) rl.(cr_pat) in
-      let rhs := inst (liftn m ξ) rl.(cr_rep) in
-      nth_error ξ x = Some None ∧
-      scoped m rl.(cr_pat) = true ∧
-      scoped m rl.(cr_rep) = true ∧
-      (* Γ ,,, Θ ⊢ *) lhs ≡ rhs.
-
-End Equations.
 
 Inductive conversion : term → term → Prop :=
 
@@ -153,24 +51,6 @@ Inductive conversion : term → term → Prop :=
 | conv_beta :
     ∀ A t u,
       app (lam A t) u ≡ t <[ u .. ]
-
-| conv_unfold :
-    ∀ c ξ Ξ' A t,
-      Σ c = Some (Def Ξ' A t) →
-      inst_equations_ conversion ξ Ξ' →
-      closed t = true →
-      const c ξ ≡ inst ξ t
-
-| conv_red :
-    ∀ n rl σ,
-      ictx_get Ξ n = Some (Comp rl) →
-      let Θ := rl.(cr_env) in
-      let k := length Θ in
-      let lhs := rl.(cr_pat) in
-      let rhs := rl.(cr_rep) in
-      scoped k lhs = true →
-      scoped k rhs = true →
-      lhs <[ σ ] ≡ rhs <[ σ ]
 
 (** Congruence rules *)
 
@@ -192,11 +72,6 @@ Inductive conversion : term → term → Prop :=
       v ≡ v' →
       app u v ≡ app u' v'
 
-| cong_const :
-    ∀ c ξ ξ',
-      Forall2 (option_rel conversion) ξ ξ' →
-      const c ξ ≡ const c ξ'
-
 (** Structural rules *)
 
 | conv_refl :
@@ -216,76 +91,96 @@ Inductive conversion : term → term → Prop :=
 
 where "u ≡ v" := (conversion u v).
 
-Notation inst_equations := (inst_equations_ conversion).
+Inductive styping (Γ : ctx) : term → term → Prop :=
 
-(** ** Instance typing *)
-Section Inst.
-
-  Context (typing : ctx → term → term → Prop).
-
-  Notation "Γ ⊢ u : A" := (typing Γ u A).
-
-  Definition inst_iget_ (Γ : ctx) (ξ : instance) (Ξ' : ictx) :=
-    ∀ n A,
-      ictx_get Ξ' n = Some (Assm A) →
-      closed A = true ∧
-      Γ ⊢ iget ξ n : inst ξ A.
-
-End Inst.
-
-Inductive typing (Γ : ctx) : term → term → Prop :=
-
-| type_var :
+| stype_var :
     ∀ x A,
       nth_error Γ x = Some A →
       Γ ⊢ var x : (plus (S x)) ⋅ A
 
-| type_sort :
+| stype_typ :
     ∀ i,
-      Γ ⊢ Sort i : Sort (S i)
+      Γ ⊢ Typ i : Typ (S i)
 
-| type_pi :
+| stype_ptyp :
+    ∀ i,
+      Γ ⊢ PTyp i : PTyp (S i)
+
+| stype_pi_P :
     ∀ i j A B,
-      Γ ⊢ A : Sort i →
-      Γ ,, A ⊢ B : Sort j →
-      Γ ⊢ Pi A B : Sort (max i j)
-
-| type_lam :
+      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
+      Γ ,, A ⊢ B : PTyp j →
+      Γ ⊢ Pi A B : PTyp (max i j)
+| stype_pi_T :
+    ∀ i j A B,
+      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
+      Γ ,, A ⊢ B : Typ j →
+      Γ ⊢ Pi A B : Typ (max i j)
+                        
+| stype_lam :
     ∀ i j A B t,
-      Γ ⊢ A : Sort i →
-      Γ ,, A ⊢ B : Sort j →
+      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
+      Γ ,, A ⊢ B : Typ j ∨ Γ ,, A ⊢ B : PTyp j →
       Γ ,, A ⊢ t : B →
       Γ ⊢ lam A t : Pi A B
 
-| type_app :
+| stype_app :
     ∀ i j A B t u,
       Γ ⊢ t : Pi A B →
       Γ ⊢ u : A →
-      Γ ⊢ A : Sort i →
-      Γ ,, A ⊢ B : Sort j →
+      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
+      Γ ,, A ⊢ B : Typ j ∨ Γ ,, A ⊢ B : PTyp j →
       Γ ⊢ app t u : B <[ u .. ]
 
-| type_const :
-    ∀ c ξ Ξ' A t,
-      Σ c = Some (Def Ξ' A t) →
-      inst_typing_ conversion (typing Γ) ξ Ξ' →
-      closed A = true →
-      Γ ⊢ const c ξ : inst ξ A
-
-| type_assm :
-    ∀ x A,
-      ictx_get Ξ x = Some (Assm A) →
-      closed A = true →
-      Γ ⊢ assm x : A
-
-| type_conv :
+| stype_conv :
     ∀ i A B t,
       Γ ⊢ t : A →
       A ≡ B →
-      Γ ⊢ B : Sort i →
+      Γ ⊢ B : Typ i ∨ Γ ⊢ B : PTyp i →
       Γ ⊢ t : B
 
-where "Γ ⊢ t : A" := (typing Γ t A).
+where "Γ ⊢ t : A" := (styping Γ t A).
+
+Inductive ttyping (Γ : ctx) : term → term → Prop :=
+
+| ttype_var :
+    ∀ x A,
+      nth_error Γ x = Some A →
+      Γ ⊨ var x : (plus (S x)) ⋅ A
+
+| ttype_typ :
+    ∀ i,
+      Γ ⊨ Typ i : Typ (S i)
+                      
+| ttype_pi :
+    ∀ i j A B,
+      Γ ⊨ A : Typ i →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ⊨ Pi A B : Typ (max i j)
+                        
+| ttype_lam :
+    ∀ i j A B t,
+      Γ ⊨ A : Typ i →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ,, A ⊨ t : B →
+      Γ ⊨ lam A t : Pi A B
+
+| ttype_app :
+    ∀ i j A B t u,
+      Γ ⊨ t : Pi A B →
+      Γ ⊨ u : A →
+      Γ ⊨ A : Typ i →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ⊨ app t u : B <[ u .. ]
+
+| type_conv :
+    ∀ i A B t,
+      Γ ⊨ t : A →
+      A ≡ B →
+      Γ ⊨ B : PTyp i →
+      Γ ⊨ t : B
+
+where "Γ ⊨ t : A" := (ttyping Γ t A).
 
 (** ** Context formation *)
 
@@ -294,68 +189,22 @@ Inductive wf : ctx → Prop :=
 | wf_cons :
     ∀ Γ i A,
       wf Γ →
-      Γ ⊢ A : Sort i →
+      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
       wf (Γ ,, A).
-
-End Typing.
-
-Notation "Σ ;; Ξ ⊢ u ≡ v" :=
-  (conversion Σ Ξ u v)
-  (at level 80, u, v at next level, format "Σ  ;;  Ξ  ⊢  u  ≡  v").
-
-Notation "Σ ;; Ξ | Γ ⊢ t : A" :=
-  (typing Σ Ξ Γ t A)
-  (at level 80, t, A at next level, format "Σ  ;;  Ξ  |  Γ  ⊢  t  :  A").
-
-(** ** Equation typing *)
-
-Definition equation_typing Σ Ξ ε :=
-  wf Σ Ξ ε.(eq_env) ∧
-  (∃ i, Σ ;; Ξ | ε.(eq_env) ⊢ ε.(eq_typ) : Sort i) ∧
-  Σ ;; Ξ | ε.(eq_env) ⊢ ε.(eq_lhs) : ε.(eq_typ) ∧
-  Σ ;; Ξ | ε.(eq_env) ⊢ ε.(eq_rhs) : ε.(eq_typ).
-
-(** ** Interface typing *)
-
-Inductive iwf (Σ : gctx) : ictx → Prop :=
-| iwf_nil : iwf Σ []
-
-| iwf_assm A Ξ i :
-    iwf Σ Ξ →
-    Σ ;; Ξ | ∙ ⊢ A : Sort i →
-    iwf Σ (Assm A :: Ξ)
-
-| iwf_comp rl Ξ :
-    iwf Σ Ξ →
-    gscope_crule Σ rl →
-    iscope Ξ rl.(cr_pat) →
-    equation_typing Σ Ξ (crule_eq rl) →
-    iwf Σ (Comp rl :: Ξ).
-Derive Signature for iwf.
-
-(** ** Global environment typing *)
-
-Inductive gwf : gctx → Prop :=
-| gwf_nil : gwf []
-
-| gwf_def c (Σ : gctx) Ξ A t i :
-    Σ c = None → (* freshness *)
-    gwf Σ →
-    iwf Σ Ξ →
-    Σ ;; Ξ | ∙ ⊢ A : Sort i → (* Redundant, makes proofs easier *)
-    Σ ;; Ξ | ∙ ⊢ t : A →
-    gwf ((c, Def Ξ A t) :: Σ).
 
 (** Automation *)
 
 Create HintDb conv discriminated.
 Create HintDb type discriminated.
 
-Hint Resolve conv_beta conv_unfold cong_Pi cong_lam cong_app cong_const
-  conv_refl
+Hint Resolve conv_beta cong_Pi cong_lam cong_app conv_refl
 : conv.
 
-Hint Resolve type_var type_sort type_pi type_lam type_app type_const type_assm
+Hint Resolve stype_var stype_typ stype_ptyp stype_pi_P stype_pi_T
+  stype_lam stype_app
+  : type.
+
+Hint Resolve ttype_var ttype_typ ttype_pi ttype_lam ttype_app
 : type.
 
 Ltac ttconv :=
@@ -363,44 +212,3 @@ Ltac ttconv :=
 
 Ltac tttype :=
   unshelve typeclasses eauto with type shelvedb ; shelve_unifiable.
-
-(** Util *)
-
-Lemma meta_conv :
-  ∀ Σ Ξ Γ t A B,
-    Σ ;; Ξ | Γ ⊢ t : A →
-    A = B →
-    Σ ;; Ξ | Γ ⊢ t : B.
-Proof.
-  intros Σ Ξ Γ t A B h ->. assumption.
-Qed.
-
-Lemma meta_conv_trans_l :
-  ∀ Σ Ξ u v w,
-    u = v →
-    Σ ;; Ξ ⊢ v ≡ w →
-    Σ ;; Ξ ⊢ u ≡ w.
-Proof.
-  intros Σ Ξ ??? <- h. assumption.
-Qed.
-
-Lemma meta_conv_trans_r :
-  ∀ Σ Ξ u v w,
-    Σ ;; Ξ ⊢ u ≡ v →
-    v = w →
-    Σ ;; Ξ ⊢ u ≡ w.
-Proof.
-  intros Σ Ξ u v ? h <-. assumption.
-Qed.
-
-Lemma meta_conv_refl :
-  ∀ Σ Ξ u v,
-    u = v →
-    Σ ;; Ξ ⊢ u ≡ v.
-Proof.
-  intros Σ Ξ u ? <-. ttconv.
-Qed.
-
-Notation inst_equations Σ Ξ := (inst_equations_ (conversion Σ Ξ)).
-Notation inst_iget Σ Ξ := (inst_iget_ (typing Σ Ξ)).
-Notation inst_typing Σ Ξ Γ := (inst_typing_ (conversion Σ Ξ) (typing Σ Ξ Γ)).

@@ -15,8 +15,6 @@ Set Default Goal Selector "!".
 
 (** Better induction principle for [typing] *)
 
-Check styping_ind.
-
 Lemma styping_ind :
   ∀ (P : ctx → term → term → Prop),
     (∀ Γ x A, nth_error Γ x = Some A → P Γ (var x) (Nat.add (S x) ⋅ A)) →
@@ -159,8 +157,6 @@ Proof.
 Qed.
 
 (** Typing implies scoping *)
-
-Check styping_ind.
 
 Lemma styping_scoped Γ t A :
   Γ ⊢ t : A →

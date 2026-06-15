@@ -158,52 +158,6 @@ Proof.
   - rasimpl. constructor.
 Qed.
 
-Fixpoint ren_ctx ρ Γ {struct Γ} :=
-  match Γ with
-  | [] => ∙
-  | A :: Γ => (ren_ctx ρ Γ) ,, (uprens (length Γ) ρ ⋅ A)
-  end.
-
-Lemma rtyping_uprens Γ Δ Θ ρ :
-  rtyping Δ ρ Γ →
-  rtyping (Δ ,,, ren_ctx ρ Θ) (uprens (length Θ) ρ) (Γ ,,, Θ).
-Proof.
-  intros h.
-  induction Θ as [| A Θ ih].
-  - cbn. assumption.
-  - cbn. rewrite app_comm_cons. cbn. eapply rtyping_up. assumption.
-Qed.
-
-Corollary rtyping_uprens_eq Γ Δ Θ ρ k :
-  rtyping Δ ρ Γ →
-  k = length Θ →
-  rtyping (Δ ,,, ren_ctx ρ Θ) (uprens k ρ) (Γ ,,, Θ).
-Proof.
-  intros h ->.
-  eapply rtyping_uprens. assumption.
-Qed.
-
-Lemma ups_below k σ n :
-  n < k →
-  ups k σ n = var n.
-Proof.
-  intro h.
-  induction k as [| k ih] in n, σ, h |- *. 1: lia.
-  cbn. destruct n as [| ].
-  - reflexivity.
-  - cbn. core.unfold_funcomp. rewrite ih. 2: lia.
-    reflexivity.
-Qed.
-
-Lemma ups_above k σ n :
-  ups k σ (k + n) = (plus k) ⋅ σ n.
-Proof.
-  induction k as [| k ih] in n |- *.
-  - cbn. rasimpl. reflexivity.
-  - cbn. core.unfold_funcomp. rewrite ih.
-    rasimpl. reflexivity.
-Qed.
-
 Lemma styping_ren :
   ∀ Γ Δ ρ t A,
     rtyping Δ ρ Γ →

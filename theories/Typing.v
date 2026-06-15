@@ -13,13 +13,15 @@ Set Default Goal Selector "!".
 
 Open Scope subst_scope.
 
+Notation Typ := (Sort S_Typ).
+Notation PTyp := (Sort S_PTyp).
+
 (** ** Closedness property *)
 
 Fixpoint scoped n t :=
   match t with
   | var m => m <? n
-  | Typ _ => true
-  | PTyp _ => true
+  | Sort _ _ => true
                 
   | Pi A B => scoped n A && scoped (S n) B
   | lam A t => scoped n A && scoped (S n) t
@@ -98,45 +100,36 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
       nth_error Γ x = Some A →
       Γ ⊢ var x : (plus (S x)) ⋅ A
 
-| stype_typ :
-    ∀ i,
-      Γ ⊢ Typ i : Typ (S i)
+| stype_sort :
+    ∀ s i,
+      Γ ⊢ Sort s i : Sort s (S i)
 
-| stype_ptyp :
-    ∀ i,
-      Γ ⊢ PTyp i : PTyp (S i)
-
-| stype_pi_P :
-    ∀ i j A B,
-      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
-      Γ ,, A ⊢ B : PTyp j →
-      Γ ⊢ Pi A B : PTyp (max i j)
-| stype_pi_T :
-    ∀ i j A B,
-      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
-      Γ ,, A ⊢ B : Typ j →
-      Γ ⊢ Pi A B : Typ (max i j)
+| stype_pi :
+    ∀ s s' i j A B,
+      Γ ⊢ A : Sort s i →
+      Γ ,, A ⊢ B : Sort s' j →
+      Γ ⊢ Pi A B : Sort s' (max i j)
                         
 | stype_lam :
-    ∀ i j A B t,
-      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
-      Γ ,, A ⊢ B : Typ j ∨ Γ ,, A ⊢ B : PTyp j →
+    ∀ s s' i j A B t,
+      Γ ⊢ A : Sort s i →
+      Γ ,, A ⊢ B : Sort s' j →
       Γ ,, A ⊢ t : B →
       Γ ⊢ lam A t : Pi A B
 
 | stype_app :
-    ∀ i j A B t u,
+    ∀ s s' i j A B t u,
       Γ ⊢ t : Pi A B →
       Γ ⊢ u : A →
-      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
-      Γ ,, A ⊢ B : Typ j ∨ Γ ,, A ⊢ B : PTyp j →
+      Γ ⊢ A : Sort s i →
+      Γ ,, A ⊢ B : Sort s' j →
       Γ ⊢ app t u : B <[ u .. ]
 
 | stype_conv :
-    ∀ i A B t,
+    ∀ s i A B t,
       Γ ⊢ t : A →
       A ≡ B →
-      Γ ⊢ B : Typ i ∨ Γ ⊢ B : PTyp i →
+      Γ ⊢ B : Sort s i →
       Γ ⊢ t : B
 
 where "Γ ⊢ t : A" := (styping Γ t A).
@@ -173,11 +166,11 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
       Γ ,, A ⊨ B : Typ j →
       Γ ⊨ app t u : B <[ u .. ]
 
-| type_conv :
+| ttype_conv :
     ∀ i A B t,
       Γ ⊨ t : A →
       A ≡ B →
-      Γ ⊨ B : PTyp i →
+      Γ ⊨ B : Typ i →
       Γ ⊨ t : B
 
 where "Γ ⊨ t : A" := (ttyping Γ t A).
@@ -187,9 +180,9 @@ where "Γ ⊨ t : A" := (ttyping Γ t A).
 Inductive wf : ctx → Prop :=
 | wf_nil : wf ∙
 | wf_cons :
-    ∀ Γ i A,
+    ∀ Γ s i A,
       wf Γ →
-      Γ ⊢ A : Typ i ∨ Γ ⊢ A : PTyp i →
+      Γ ⊢ A : Sort s i →
       wf (Γ ,, A).
 
 (** Automation *)
@@ -200,7 +193,7 @@ Create HintDb type discriminated.
 Hint Resolve conv_beta cong_Pi cong_lam cong_app conv_refl
 : conv.
 
-Hint Resolve stype_var stype_typ stype_ptyp stype_pi_P stype_pi_T
+Hint Resolve stype_var stype_sort stype_pi
   stype_lam stype_app
   : type.
 

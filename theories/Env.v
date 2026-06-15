@@ -16,6 +16,8 @@ Import ListNotations.
 (** Local environment, a list of types *)
 Definition ctx := list term.
 
+
+(*
 (** ** Custom computation rule
 
   We consider them as definitional equalities which might be nonlinear.
@@ -59,6 +61,7 @@ Definition crule_eq rule : equation := {|
   eq_rhs := rule.(cr_rep) ;
   eq_typ := rule.(cr_typ)
 |}.
+*)
 
 (** ** Notations *)
 

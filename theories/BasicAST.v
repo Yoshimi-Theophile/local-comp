@@ -4,3 +4,7 @@ Set Primitive Projections.
 
 (** Universe level *)
 Definition level := nat.
+
+Inductive sort :=
+| S_Typ
+| S_PTyp.

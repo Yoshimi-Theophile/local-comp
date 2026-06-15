@@ -1,25 +1,7 @@
-(*
-
-(** Inlining
-
-  Here we prove one of the main results about our theory: that it is a
-  conservative extension of MLTT.
-
-  We do so by inlining global definitions inside a term.
-
-  We represent MLTT by out type theory where both global (Σ) and extension (Ξ)
-  environments are empty.
-
-  By doing this, we get more than by going through ETT: typically we don't need
-  any form of UIP or funext, or even of equality!
-
-*)
-
 From Stdlib Require Import Utf8 String List Arith Lia.
 From LocalComp.autosubst Require Import unscoped AST SubstNotations RAsimpl
   AST_rasimpl.
-From LocalComp Require Import Util BasicAST Env Inst Typing BasicMetaTheory
-  GScope IScope.
+From LocalComp Require Import Util BasicAST Env Inst Typing BasicMetaTheory.
 From Stdlib Require Import Setoid Morphisms Relation_Definitions.
 
 Import ListNotations.
@@ -28,16 +10,12 @@ Import CombineNotations.
 Require Import Equations.Prop.DepElim.
 
 Set Default Goal Selector "!".
+(*
+Section Translation.
 
-#[local] Notation ginst := (gref → term).
-
-Section Inline.
-
-  Context (Σ : gctx).
-  Context (κ : ginst). (** A map from references to their translated def. *)
-
+  Reserved Notation "[ t ]" (at level 0). 
   Reserved Notation "⟦ t ⟧" (at level 0).
-  Reserved Notation "⟦ k ⟧×" (at level 0).
+  Reserved Notation "[ k ]ₜ" (at level 0).
 
   Fixpoint inline (t : term) :=
     match t with
@@ -641,5 +619,5 @@ Proof.
   rewrite gA in ht. eassumption.
 Qed.
 
- *)
 
+*)

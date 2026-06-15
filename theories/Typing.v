@@ -18,6 +18,7 @@ Notation PTyp := (Sort S_PTyp).
 
 (** ** Closedness property *)
 
+(*
 Fixpoint scoped n t :=
   match t with
   | var m => m <? n
@@ -30,12 +31,7 @@ Fixpoint scoped n t :=
   end.
 
 Notation closed t := (scoped 0 t).
-
-Notation scoped_instance k ξ :=
-  (forallb (λ t, onSomeb (scoped k) t) ξ).
-
-Notation closed_instance ξ :=
-  (scoped_instance 0 ξ).
+*)
 
 Reserved Notation "Γ ⊢ t : A"
   (at level 80, t, A at next level).

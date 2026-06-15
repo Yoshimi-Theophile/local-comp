@@ -58,33 +58,6 @@ Proof.
   all: try solve [eauto].
 Qed.
 
-(** Typing implies scoping *)
-
-Lemma styping_scoped Γ t A :
-  Γ ⊢ t : A →
-  scoped (length Γ) t = true.
-Proof.
-  intro h.
-  induction h using styping_ind.
-  all: try solve [ cbn - ["<?"] in * ; eauto ].
-  all: try solve [
-    cbn - ["<?"] in * ;
-    rewrite Bool.andb_true_iff in * ;
-    intuition eauto
-  ].
-  simpl. rewrite Nat.ltb_lt, <-nth_error_Some.
-  congruence.
-Qed. 
-
-Lemma styping_closed t A :
-  ∙ ⊢ t : A →
-  closed t = true.
-Proof.
-  intros h.
-  eapply styping_scoped with (Γ := ∙).
-  eassumption.
-Qed.
-
 (** Renaming preserves typing *)
 
 Definition rtyping (Γ : ctx) (ρ : nat → nat) (Δ : ctx) : Prop :=
@@ -173,46 +146,6 @@ Proof.
   - apply extRen_term. intro. core.unfold_funcomp. lia.
 Qed.
 
-Fixpoint uprens k (ρ : nat → nat) :=
-  match k with
-  | 0 => ρ
-  | S k => upRen_term_term (uprens k ρ)
-  end.
-
-Lemma scoped_ren :
-  ∀ ρ k t,
-    scoped k t = true →
-    (uprens k ρ) ⋅ t = t.
-Proof.
-  intros ρ k t h.
-  induction t using term_rect in k, h |- *.
-  all: try solve [ cbn ; eauto ].
-  all: try solve [
-    cbn ;
-    apply andb_prop in h as [] ;
-    change (upRen_term_term (uprens ?k ?ρ)) with (uprens (S k) ρ) ;
-    f_equal ;
-    eauto
-  ].
-  cbn - ["<?"] in *. f_equal.
-  apply Nat.ltb_lt in h.
-  induction n as [| n ih] in k, h |- *.
-  - destruct k. 1: lia.
-    reflexivity.
-  - destruct k. 1: lia.
-    cbn. core.unfold_funcomp. f_equal.
-    apply ih. lia.
-Qed.
-
-Corollary closed_ren :
-  ∀ ρ t,
-    closed t = true →
-    ρ ⋅ t = t.
-Proof.
-  intros ρ t h.
-  eapply scoped_ren in h. eauto.
-Qed.
-
 Lemma conv_ren ρ u v :
   u ≡ v →
   ρ ⋅ u ≡ ρ ⋅ v.
@@ -293,76 +226,6 @@ Proof.
     now apply conv_ren.
 Qed.
 
-(** Reproving [ext_term] but with scoping assumption *)
-
-Definition eq_subst_on k (σ θ : nat → term) :=
-  ∀ x, x < k → σ x = θ x.
-
-Lemma eq_subst_on_up k σ θ :
-  eq_subst_on k σ θ →
-  eq_subst_on (S k) (up_term σ) (up_term θ).
-Proof.
-  intros h [] he.
-  - reflexivity.
-  - cbn. repeat core.unfold_funcomp. f_equal.
-    apply h. lia.
-Qed.
-
-Lemma ext_term_scoped k t σ θ :
-  scoped k t = true →
-  eq_subst_on k σ θ →
-  t <[ σ ] = t <[ θ ].
-Proof.
-  intros h e.
-  induction t using term_rect in k, h, σ, θ, e |- *.
-  all: try solve [ cbn ; eauto ].
-  all: try solve [
-    cbn in * ; apply andb_prop in h ;
-    f_equal ; intuition eauto using eq_subst_on_up
-  ].
-  cbn. apply e. cbn - ["<?"] in h.
-  now rewrite Nat.ltb_lt in h.
-Qed.
-
-(** Corollary: every substitution acts like a list of terms
-
-  We present two versions: one with actual lists, and one where we truncate
-  a substitution directly, behaving as a shift outside.
-  The latter has the advantage that it verifies the condition for
-  [subst_inst] later.
-
-*)
-
-Fixpoint listify k (σ : nat → term) :=
-  match k with
-  | 0 => []
-  | S k => σ 0 :: listify k (S >> σ)
-  end.
-
-Fixpoint trunc k d (σ : nat → term) :=
-  match k with
-  | 0 => plus d >> ids
-  | S k => σ 0 .: trunc k d (S >> σ)
-  end.
-
-Lemma eq_subst_trunc k d σ :
-  eq_subst_on k σ (trunc k d σ).
-Proof.
-  intros x h.
-  induction k as [| k ih] in x, h, σ |- *. 1: lia.
-  cbn. destruct x as [| x].
-  - reflexivity.
-  - cbn. apply (ih (S >> σ)). lia.
-Qed.
-
-Lemma trunc_bounds k d σ x :
-  trunc k d σ (k + x) = var (d + x).
-Proof.
-  induction k as [| k ih] in σ, x |- *.
-  - cbn. reflexivity.
-  - cbn. apply ih.
-Qed.
-
 (** Substitution preserves typing *)
 
 Inductive σtyping (Γ : ctx) (σ : nat → term) : ctx → Prop :=
@@ -373,7 +236,7 @@ Inductive σtyping (Γ : ctx) (σ : nat → term) : ctx → Prop :=
     σtyping Γ σ (Δ ,, A).
 
 #[export] Instance σtyping_morphism :
-  Proper (eq ==> pointwise_relation _ eq ==> eq ==> iff)σtyping.
+Proper (eq ==> pointwise_relation _ eq ==> eq ==> iff)σtyping.
 Proof.
   intros Γ ? <- σ σ' e Δ ? <-.
   revert σ σ' e. wlog_iff. intros σ σ' e h.
@@ -438,108 +301,6 @@ Proof.
     econstructor.
 Qed.
 
-Lemma scoped_subst σ k t :
-  scoped k t = true →
-  t <[ ups k σ ] = t.
-Proof.
-  intros h.
-  induction t using term_rect in k, σ, h |- *.
-  all: try solve [ cbn ; eauto ].
-  all: try solve [
-    cbn ;
-    apply andb_prop in h as [] ;
-    change (up_term_term (ups ?k ?σ)) with (ups (S k) σ) ;
-    f_equal ;
-    eauto
-  ].
-  cbn - ["<?"] in *.
-  apply ups_below.
-  apply Nat.ltb_lt. assumption.
-Qed.
-
-Corollary closed_subst σ t :
-  closed t = true →
-  t <[ σ ] = t.
-Proof.
-  intros h.
-  eapply scoped_subst in h. eauto.
-Qed.
-
-Lemma scoped_upwards k l t :
-  scoped k t = true →
-  k ≤ l →
-  scoped l t = true.
-Proof.
-  intros ht hkl.
-  induction t using term_rect in k, l, ht, hkl |- *.
-  all: try solve [ cbn ; eauto ].
-  all: try solve [
-    cbn in * ; rewrite Bool.andb_true_iff in * ;
-    intuition eauto with arith
-  ].
-  cbn - ["<?"] in *. rewrite Nat.ltb_lt in *. lia.
-Qed.
-
-Lemma uprens_below k ρ n :
-  n < k →
-  uprens k ρ n = n.
-Proof.
-  intro h.
-  induction k as [| k ih] in n, ρ, h |- *. 1: lia.
-  cbn. destruct n as [| ].
-  - reflexivity.
-  - cbn. core.unfold_funcomp. rewrite ih. 2: lia.
-    reflexivity.
-Qed.
-
-Lemma uprens_above k ρ n :
-  uprens k ρ (k + n) = k + ρ n.
-Proof.
-  induction k as [| k ih] in n |- *.
-  - cbn. rasimpl. reflexivity.
-  - cbn. core.unfold_funcomp. rewrite ih.
-    rasimpl. reflexivity.
-Qed.
-
-Lemma scoped_lift_gen k l t m :
-  scoped (m + l) t = true →
-  scoped (m + k + l) (uprens m (plus k) ⋅ t) = true.
-Proof.
-  intros h.
-  induction t using term_rect in m, k, l, h |- *.
-  all: try solve [ cbn ; eauto ].
-  all: try solve [
-    cbn in * ; rewrite Bool.andb_true_iff in * ;
-    (* rewrite Nat.ltb_lt in * ; *)
-    intuition eauto with arith
-  ].
-  - cbn - ["<=?"] in *. rewrite Nat.ltb_lt in *.
-    destruct (lt_dec n m).
-    + rewrite uprens_below. 2: assumption.
-      lia.
-    + pose (p := n - m). replace n with (m + p) by lia.
-      rewrite uprens_above. lia.
-  - cbn in *. rewrite Bool.andb_true_iff in *.
-    intuition eauto.
-    change (upRen_term_term (uprens m ?ρ)) with (uprens (S m) ρ).
-    change (S (m + k + l)) with (S m + k + l).
-    eauto.
-  - cbn in *. rewrite Bool.andb_true_iff in *.
-    intuition eauto.
-    change (upRen_term_term (uprens m ?ρ)) with (uprens (S m) ρ).
-    change (S (m + k + l)) with (S m + k + l).
-    eauto.
-Qed.
-
-Lemma scoped_lift k l t :
-  scoped l t = true →
-  scoped (k + l) (plus k ⋅ t) = true.
-Proof.
-  intros h.
-  eapply scoped_lift_gen with (m := 0).
-  assumption.
-Qed.
-
 Lemma styping_subst Γ Δ σ t A :
   σtyping Δ σ Γ →
   Γ ⊢ t : A →
@@ -583,8 +344,6 @@ Proof.
   erewrite autosubst_simpl_σtyping. 2: exact _. (* Somehow rasimpl doesn't work *)
   apply σtyping_ids.
 Qed.
-
-(* TODO *)
 
 Lemma valid_wf Γ x A :
   wf Γ →
@@ -631,19 +390,6 @@ Proof.
       assumption.
     + specialize (h 0 _ eq_refl). rasimpl in h.
       assumption.
-Qed.
-
-Lemma styping_lift_closed Γ t A :
-  ∙ ⊢ t : A →
-  closed A = true →
-  Γ ⊢ t : A.
-Proof.
-  intros h hA.
-  eapply styping_scoped in h as ht. cbn in ht.
-  eapply styping_ren in h. 2: eapply rtyping_add.
-  rewrite !closed_ren in h. 2,3: assumption.
-  rewrite app_nil_r in h.
-  eassumption.
 Qed.
 
 Lemma validity Γ t A :

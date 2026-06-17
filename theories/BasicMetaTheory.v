@@ -3,7 +3,7 @@
 From Stdlib Require Import Utf8 String List Arith Lia.
 From LocalComp.autosubst Require Import unscoped AST SubstNotations RAsimpl
   AST_rasimpl.
-From LocalComp Require Import Util BasicAST Env Inst Typing.
+From LocalComp Require Import Util BasicAST Typing.
 From Stdlib Require Import Setoid Morphisms Relation_Definitions.
 
 Require Import Equations.Prop.DepElim.
@@ -22,20 +22,20 @@ Lemma styping_ind :
     (∀ Γ s s' i j A B,
       Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
       Γ,, A ⊢ B : Sort s' j → P (Γ,, A) B (Sort s' j) →
-      P Γ (Pi A B) (Sort s' (Nat.max i j))
+      P Γ (Pi s s' A B) (Sort s' (Nat.max i j))
     ) →
     (∀ Γ s s' i j A B t,
       Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
       Γ,, A ⊢ B : Sort s' j → P (Γ,, A) B (Sort s' j) →
       Γ,, A ⊢ t : B → P (Γ,, A) t B →
-      P Γ (lam A t) (Pi A B)
+      P Γ (lam s s' A t) (Pi s s' A B)
     ) →
     (∀ Γ s s' i j A B t u,
-      Γ ⊢ t : Pi A B → P Γ t (Pi A B) →
+      Γ ⊢ t : Pi s s' A B → P Γ t (Pi s s' A B) →
       Γ ⊢ u : A → P Γ u A →
       Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
       Γ,, A ⊢ B : Sort s' j → P (Γ,, A) B (Sort s' j) →
-      P Γ (app t u) (B <[ u..])
+      P Γ (app s s' t u) (B <[ u..])
     ) →
     (∀ Γ s i A B t,
       Γ ⊢ t : A → P Γ t A → A ≡ B →
@@ -49,7 +49,7 @@ Proof.
   intros Γ t A h.
   destruct h as [| | | | |].
   all: try solve [eauto].
-  apply (happ _ s s' i j A).
+  apply (happ _ _ _ i j A).
   all: try solve [eauto].
 Qed.
 
@@ -62,20 +62,20 @@ Lemma ttyping_ind :
     (∀ Γ i j A B,
       Γ ⊨ A : Typ i → P Γ A (Typ i) →
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
-      P Γ (Pi A B) (Typ (Nat.max i j))
+      P Γ (Pi_T A B) (Typ (Nat.max i j))
     ) →
     (∀ Γ i j A B t,
       Γ ⊨ A : Typ i → P Γ A (Typ i) →
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
       Γ,, A ⊨ t : B → P (Γ,, A) t B →
-      P Γ (lam A t) (Pi A B)
+      P Γ (lam_T A t) (Pi_T A B)
     ) →
     (∀ Γ i j A B t u,
-      Γ ⊨ t : Pi A B → P Γ t (Pi A B) →
+      Γ ⊨ t : Pi_T A B → P Γ t (Pi_T A B) →
       Γ ⊨ u : A → P Γ u A →
       Γ ⊨ A : Typ i → P Γ A (Typ i) →
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
-      P Γ (app t u) (B <[ u..])
+      P Γ (app_T t u) (B <[ u..])
     ) →
     (∀ Γ i A B t,
       Γ ⊨ t : A → P Γ t A → A ≡ B →
@@ -241,17 +241,18 @@ Qed.
 
 (** Substitution preserves typing *)
 
-Inductive σtyping (Γ : ctx) (σ : nat → term) : ctx → Prop :=
-| type_nil : σtyping Γ σ ∙
+Inductive σtyping (typing : ctx → term → term → Prop)
+  (Γ : ctx) (σ : nat → term) : ctx → Prop :=
+| type_nil : σtyping _ Γ σ ∙
 | type_cons Δ A :
-    σtyping Γ (S >> σ) Δ →
-    Γ ⊢ σ 0 : A <[ S >> σ ] →
-    σtyping Γ σ (Δ ,, A).
+    σtyping _ Γ (S >> σ) Δ →
+    typing Γ (σ 0) (A <[ S >> σ ]) →
+    σtyping _ Γ σ (Δ ,, A).
 
 #[export] Instance σtyping_morphism :
-Proper (eq ==> pointwise_relation _ eq ==> eq ==> iff)σtyping.
+Proper (eq ==> eq ==> pointwise_relation _ eq ==> eq ==> iff) σtyping.
 Proof.
-  intros Γ ? <- σ σ' e Δ ? <-.
+  intros jmt ? <- Γ ? <- σ σ' e Δ ? <-.
   revert σ σ' e. wlog_iff. intros σ σ' e h.
   induction h as [| ? ? ? ? ih ? ] in σ', e |- *.
   - constructor.
@@ -264,39 +265,68 @@ Proof.
 Qed.
 
 Lemma autosubst_simpl_σtyping :
-  ∀ Γ Δ r s,
+  ∀ jmt Γ Δ r s,
     SubstSimplification r s →
-    σtyping Γ r Δ ↔ σtyping Γ s Δ.
+    σtyping jmt Γ r Δ ↔ σtyping jmt Γ s Δ.
 Proof.
-  intros Γ Δ r s H.
+  intros op Γ Δ r s H.
   apply σtyping_morphism.
-  1,3: reflexivity.
+  1,2,4: reflexivity.
   apply H.
 Qed.
 
 #[export] Hint Rewrite -> autosubst_simpl_σtyping : rasimpl_outermost.
 
-Lemma σtyping_weak Γ Δ σ A :
-  σtyping Γ σ Δ →
-  σtyping (Γ,, A) (σ >> ren_term S) Δ.
+Notation σstyping := (σtyping styping).
+Notation σttyping := (σtyping ttyping).
+
+Lemma σstyping_weak Γ Δ σ A :
+  σstyping Γ σ Δ →
+  σstyping (Γ,, A) (σ >> ren_term S) Δ.
 Proof.
   intros h.
   induction h.
   - constructor.
   - constructor.
-    + assumption.
-    + assert (S ⋅ A0 <[ S >> σ] = A0 <[ S >> (σ >> ren_term S)]) as <- by now rasimpl.
-      eapply styping_ren. 2: eassumption.
-      apply rtyping_S.
+    1: assumption.
+    assert (S ⋅ A0 <[ S >> σ] = A0 <[ S >> (σ >> ren_term S)]) as <- by now rasimpl.
+    eapply styping_ren. 2: eassumption.
+    apply rtyping_S.
 Qed.
 
-Lemma σtyping_up Γ Δ A σ :
-  σtyping Γ σ Δ →
-  σtyping (Γ ,, A <[ σ ]) (up_term σ) (Δ,, A).
+Lemma σstyping_up Γ Δ A σ :
+  σstyping Γ σ Δ →
+  σstyping (Γ ,, A <[ σ ]) (up_term σ) (Δ,, A).
 Proof.
   intros h.
   constructor.
-  - rasimpl. now apply σtyping_weak.
+  - rasimpl. now apply σstyping_weak.
+  - rasimpl.
+    assert (Init.Nat.add 1 ⋅ A <[ σ] = A <[ σ >> ren_term S]) as <- by now rasimpl.
+    now econstructor.
+Qed.
+
+Lemma σttyping_weak Γ Δ σ A :
+  σttyping Γ σ Δ →
+  σttyping (Γ,, A) (σ >> ren_term S) Δ.
+Proof.
+  intros h.
+  induction h.
+  - constructor.
+  - constructor.
+    1: assumption.
+    assert (S ⋅ A0 <[ S >> σ] = A0 <[ S >> (σ >> ren_term S)]) as <- by now rasimpl.
+    eapply ttyping_ren. 2: eassumption.
+    apply rtyping_S.
+Qed.
+
+Lemma σttyping_up Γ Δ A σ :
+  σttyping Γ σ Δ →
+  σttyping (Γ ,, A <[ σ ]) (up_term σ) (Δ,, A).
+Proof.
+  intros h.
+  constructor.
+  - rasimpl. now apply σttyping_weak.
   - rasimpl.
     assert (Init.Nat.add 1 ⋅ A <[ σ] = A <[ σ >> ren_term S]) as <- by now rasimpl.
     now econstructor.
@@ -315,13 +345,13 @@ Proof.
 Qed.
 
 Lemma styping_subst Γ Δ σ t A :
-  σtyping Δ σ Γ →
+  σstyping Δ σ Γ →
   Γ ⊢ t : A →
   Δ ⊢ t <[ σ ] : A <[ σ ].
 Proof.
   intros hσ ht.
   induction ht using styping_ind in Δ, σ, hσ |- *.
-  all: try solve [ rasimpl ; econstructor ; eauto using σtyping_up ].
+  all: try solve [ rasimpl ; econstructor ; eauto using σstyping_up ].
   - rasimpl.
     induction hσ in x, H |- *. 1: destruct x ; discriminate.
     destruct x.
@@ -329,37 +359,79 @@ Proof.
     + apply IHhσ. assumption.
   - assert ((B <[ up_term_term σ]) <[ (u <[ σ])..] = (B <[ u..]) <[ σ])
       as <- by now rasimpl.
-    cbn in *. econstructor ; eauto using σtyping_up.
+    cbn in *. econstructor ; eauto using σstyping_up.
+  - econstructor. 1,3: eauto.
+    eapply conv_subst. eassumption.
+Qed.
+
+Lemma ttyping_subst Γ Δ σ t A :
+  σttyping Δ σ Γ →
+  Γ ⊨ t : A →
+  Δ ⊨ t <[ σ ] : A <[ σ ].
+Proof.
+  intros hσ ht.
+  induction ht using ttyping_ind in Δ, σ, hσ |- *.
+  all: try solve [ rasimpl ; econstructor ; eauto using σttyping_up ].
+  - rasimpl.
+    induction hσ in x, H |- *. 1: destruct x ; discriminate.
+    destruct x.
+    + cbn in H. inversion H. subst. assumption.
+    + apply IHhσ. assumption.
+  - assert ((B <[ up_term_term σ]) <[ (u <[ σ])..] = (B <[ u..]) <[ σ])
+      as <- by now rasimpl.
+    cbn in *. econstructor ; eauto using σttyping_up.
   - econstructor. 1,3: eauto.
     eapply conv_subst. eassumption.
 Qed.
 
 (** Validity (or presupposition) *)
 
-Lemma σtyping_ids Γ :
-  σtyping Γ ids Γ.
+Lemma σstyping_ids Γ :
+  σstyping Γ ids Γ.
 Proof.
   induction Γ as [| A Γ ih].
   - constructor.
   - constructor.
-    + eapply σtyping_weak with (A := A) in ih.
+    + eapply σstyping_weak with (A := A) in ih.
       assumption.
     + assert (Init.Nat.add 1 ⋅ A = A <[ S >> ids]) as <- by now rasimpl; substify.
       now econstructor.
 Qed.
 
-Lemma styping_one Γ A u :
+Lemma σstyping_one Γ A u :
   Γ ⊢ u : A →
-  σtyping Γ u.. (Γ ,, A).
+  σstyping Γ u.. (Γ ,, A).
 Proof.
   intros h.
   constructor. all: rasimpl. 2: auto.
   erewrite autosubst_simpl_σtyping. 2: exact _. (* Somehow rasimpl doesn't work *)
-  apply σtyping_ids.
+  apply σstyping_ids.
 Qed.
 
-Lemma valid_wf Γ x A :
-  wf Γ →
+Lemma σttyping_ids Γ :
+  σttyping Γ ids Γ.
+Proof.
+  induction Γ as [| A Γ ih].
+  - constructor.
+  - constructor.
+    + eapply σttyping_weak with (A := A) in ih.
+      assumption.
+    + assert (Init.Nat.add 1 ⋅ A = A <[ S >> ids]) as <- by now rasimpl; substify.
+      now econstructor.
+Qed.
+
+Lemma σttyping_one Γ A u :
+  Γ ⊨ u : A →
+  σttyping Γ u.. (Γ ,, A).
+Proof.
+  intros h.
+  constructor. all: rasimpl. 2: auto.
+  erewrite autosubst_simpl_σtyping. 2: exact _. (* Somehow rasimpl doesn't work *)
+  apply σttyping_ids.
+Qed.
+
+Lemma valid_swf Γ x A :
+  swf Γ →
   nth_error Γ x = Some A →
   ∃ s i, Γ ⊢ (plus (S x)) ⋅ A : Sort s i.
 Proof.
@@ -377,13 +449,33 @@ Proof.
     rasimpl in h. eassumption.
 Qed.
 
-Definition σtyping_alt (Γ : ctx) (σ : nat → term) (Δ : ctx) :=
+Lemma valid_twf Γ x A :
+  twf Γ →
+  nth_error Γ x = Some A →
+  ∃ i, Γ ⊨ (plus (S x)) ⋅ A : Typ i.
+Proof.
+  intros hΓ h.
+  induction hΓ as [| Γ i B hΓ ih hB] in x, h |- *.
+  1: destruct x ; discriminate.
+  destruct x.
+  - cbn in *. inversion h. subst.
+    exists i. rasimpl.
+    assert (S ⋅ Typ i = Typ i) as <- by easy.
+    eapply ttyping_ren. 1: eapply rtyping_S.
+    assumption.
+  - cbn in h. eapply ih in h as [j h]. exists j.
+    eapply ttyping_ren in h. 2: eapply rtyping_S.
+    rasimpl in h. eassumption.
+Qed.
+
+Definition σtyping_alt (jmt : ctx → term → term → Prop)
+  (Γ : ctx) (σ : nat → term) (Δ : ctx) :=
   ∀ x A,
     nth_error Δ x = Some A →
-    Γ ⊢ σ x : ((plus (S x)) ⋅ A) <[ σ ].
+    jmt Γ (σ x) (((plus (S x)) ⋅ A) <[ σ ]).
 
-Lemma σtyping_alt_equiv Γ σ Δ :
-  σtyping Γ σ Δ ↔ σtyping_alt Γ σ Δ.
+Lemma σtyping_alt_equiv jmt Γ σ Δ :
+  σtyping jmt Γ σ Δ ↔ σtyping_alt jmt Γ σ Δ.
 Proof.
   split.
   - intro h. induction h as [| ???? ih].
@@ -405,19 +497,36 @@ Proof.
       assumption.
 Qed.
 
-Lemma validity Γ t A :
-  wf Γ →
+Lemma svalidity Γ t A :
+  swf Γ →
   Γ ⊢ t : A →
   ∃ s i, Γ ⊢ A : Sort s i.
 Proof.
   intros hΓ h.
   induction h using styping_ind in hΓ |- *.
   all: try solve [ eexists ; econstructor ; intuition eauto using styping ].
-  - apply valid_wf. all: assumption.
+  - apply valid_swf. all: assumption.
   - exists s', j.
     assert (Sort s' j <[ u..] = Sort s' j) as <- by easy.
     apply (styping_subst (Γ,,A)).
-    + now apply styping_one.
+    + now apply σstyping_one.
+    + assumption.
+Qed.
+
+Lemma tvalidity Γ t A :
+  twf Γ →
+  Γ ⊨ t : A →
+  ∃ i, Γ ⊨ A : Typ i.
+Proof.
+  intros hΓ h.
+  induction h using ttyping_ind in hΓ |- *.
+  all: try solve [ eexists ; econstructor ; intuition eauto using ttyping ].
+  3: eauto.
+  - apply valid_twf. all: assumption.
+  - exists j.
+    assert (Typ j <[ u..] = Typ j) as <- by easy.
+    apply (ttyping_subst (Γ,,A)).
+    + now apply σttyping_one.
     + assumption.
 Qed.
 
@@ -452,16 +561,24 @@ Proof.
   - apply ctx_conv_refl.
 Qed.
 
-Inductive wf_ctx_conv : ctx → ctx → Prop :=
-| wf_conv_nil : wf_ctx_conv ∙ ∙
-| wf_conv_cons Γ Δ s i A B :
-    wf_ctx_conv Γ Δ →
+Inductive swf_ctx_conv : ctx → ctx → Prop :=
+| swf_conv_nil : swf_ctx_conv ∙ ∙
+| swf_conv_cons Γ Δ s i A B :
+    swf_ctx_conv Γ Δ →
     Δ ⊢ A : Sort s i →
     A ≡ B →
-    wf_ctx_conv (Γ ,, A) (Δ ,, B).
+    swf_ctx_conv (Γ ,, A) (Δ ,, B).
 
-Lemma wf_ctx_conv_nth_error_l Γ Δ x A :
-  wf_ctx_conv Γ Δ →
+Inductive twf_ctx_conv : ctx → ctx → Prop :=
+| twf_conv_nil : twf_ctx_conv ∙ ∙
+| twf_conv_cons Γ Δ i A B :
+    twf_ctx_conv Γ Δ →
+    Δ ⊨ A : Typ i →
+    A ≡ B →
+    twf_ctx_conv (Γ ,, A) (Δ ,, B).
+
+Lemma swf_ctx_conv_nth_error_l Γ Δ x A :
+  swf_ctx_conv Γ Δ →
   nth_error Γ x = Some A →
   ∃ s i B,
     nth_error Δ x = Some B ∧
@@ -483,35 +600,89 @@ Proof.
     rasimpl in h. eassumption.
 Qed.
 
-Lemma typing_ctx_conv_gen (Γ Δ : ctx) t A :
-  wf_ctx_conv Γ Δ →
+Lemma twf_ctx_conv_nth_error_l Γ Δ x A :
+  twf_ctx_conv Γ Δ →
+  nth_error Γ x = Some A →
+  ∃ i B,
+    nth_error Δ x = Some B ∧
+    A ≡ B ∧
+    (Δ ⊨ (plus (S x)) ⋅ A : Typ i).
+Proof.
+  intros hctx h.
+  induction hctx as [| Γ Δ i B C hctx ih hB he] in x, h |- *.
+  1: destruct x ; discriminate.
+  destruct x.
+  - simpl in *. inversion h. subst.
+    exists i, C. rasimpl. intuition auto.
+    assert (S ⋅ Typ i = Typ i) as <- by easy.
+    eapply ttyping_ren. 1: eapply rtyping_S.
+    eassumption.
+  - cbn in h. eapply ih in h as (j & D & ? & ? & h).
+    exists j, D. cbn. intuition auto.
+    eapply ttyping_ren in h. 2: eapply rtyping_S.
+    rasimpl in h. eassumption.
+Qed.
+
+Lemma styping_ctx_conv_gen (Γ Δ : ctx) t A :
+  swf_ctx_conv Γ Δ →
   Γ ⊢ t : A →
   Δ ⊢ t : A.
 Proof.
   intros hctx h.
   induction h in Δ, hctx |- * using styping_ind.
-  all: try solve [ econstructor ; eauto using wf_conv_cons, conv_refl ].
-  eapply wf_ctx_conv_nth_error_l in hctx as h. 2: eassumption.
+  all: try solve [ econstructor ; eauto using swf_conv_cons, conv_refl ].
+  eapply swf_ctx_conv_nth_error_l in hctx as h. 2: eassumption.
   destruct h as (s & i & B & e & hc & h).
   eapply stype_conv.
   - econstructor. eassumption.
   - apply conv_sym. apply conv_ren. assumption.
   - eassumption.
 Qed.
+
+Lemma ttyping_ctx_conv_gen (Γ Δ : ctx) t A :
+  twf_ctx_conv Γ Δ →
+  Γ ⊨ t : A →
+  Δ ⊨ t : A.
+Proof.
+  intros hctx h.
+  induction h in Δ, hctx |- * using ttyping_ind.
+  all: try solve [ econstructor ; eauto using twf_conv_cons, conv_refl ].
+  eapply twf_ctx_conv_nth_error_l in hctx as h. 2: eassumption.
+  destruct h as (i & B & e & hc & h).
+  eapply ttype_conv.
+  - econstructor. eassumption.
+  - apply conv_sym. apply conv_ren. assumption.
+  - eassumption.
+Qed.
   
-Lemma typing_ctx_conv (Γ Δ : ctx) t A :
+Lemma styping_ctx_conv (Γ Δ : ctx) t A :
   Γ ⊢ t : A →
-  wf Γ →
+  swf Γ →
   ctx_conv Γ Δ →
   Δ ⊢ t : A.
 Proof.
   intros ht hΓ hctx.
-  eapply typing_ctx_conv_gen. 2: eassumption.
+  eapply styping_ctx_conv_gen. 2: eassumption.
   clear ht. induction hΓ in Δ, hctx |- *.
   - inversion hctx. constructor.
   - inversion hctx. subst.
     econstructor. 1,3: eauto.
-    eauto using typing_ctx_conv_gen.
+    eauto using styping_ctx_conv_gen.
+Qed.
+
+Lemma ttyping_ctx_conv (Γ Δ : ctx) t A :
+  Γ ⊨ t : A →
+  twf Γ →
+  ctx_conv Γ Δ →
+  Δ ⊨ t : A.
+Proof.
+  intros ht hΓ hctx.
+  eapply ttyping_ctx_conv_gen. 2: eassumption.
+  clear ht. induction hΓ in Δ, hctx |- *.
+  - inversion hctx. constructor.
+  - inversion hctx. subst.
+    econstructor. 1,3: eauto.
+    eauto using ttyping_ctx_conv_gen.
 Qed.
 
 (** Congruence of substitution *)

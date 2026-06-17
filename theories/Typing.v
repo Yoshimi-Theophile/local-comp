@@ -3,7 +3,7 @@
 From Stdlib Require Import Utf8 List Arith Bool.
 From LocalComp.autosubst
 Require Import core unscoped AST SubstNotations RAsimpl AST_rasimpl.
-From LocalComp Require Import Util BasicAST Env Inst.
+From LocalComp Require Import Util BasicAST.
 From Stdlib Require Import Setoid Morphisms Relation_Definitions.
 
 Import ListNotations.
@@ -13,25 +13,40 @@ Set Default Goal Selector "!".
 
 Open Scope subst_scope.
 
+(* Contexts *)
+
+Definition ctx := list term.
+  
+Notation "'∙'" :=
+  (@nil term).
+
+Notation "Γ ,, d" :=
+  (@cons term d Γ) (at level 20, d at next level).
+
+Notation "Γ ,,, Δ" :=
+  (@List.app term Δ Γ) (at level 25, Δ at next level, left associativity).
+
+(* Typing Notation *)
+
 Notation Typ := (Sort S_Typ).
 Notation PTyp := (Sort S_PTyp).
 
-(** ** Closedness property *)
+Notation Pi_T := (Pi S_Typ S_Typ).
+Notation Pi_P := (Pi S_PTyp S_PTyp).
+Notation Pi_PT := (Pi S_PTyp S_Typ).
+Notation Pi_TP := (Pi S_Typ S_PTyp).
 
-(*
-Fixpoint scoped n t :=
-  match t with
-  | var m => m <? n
-  | Sort _ _ => true
-                
-  | Pi A B => scoped n A && scoped (S n) B
-  | lam A t => scoped n A && scoped (S n) t
-  | app u v => scoped n u && scoped n v
+Notation lam_T := (lam S_Typ S_Typ).
+Notation lam_P := (lam S_PTyp S_PTyp).
+Notation lam_PT := (lam S_PTyp S_Typ).
+Notation lam_TP := (lam S_Typ S_PTyp).
 
-  end.
+Notation app_T := (app S_Typ S_Typ).
+Notation app_P := (app S_PTyp S_PTyp).
+Notation app_PT := (app S_PTyp S_Typ).
+Notation app_TP := (app S_Typ S_PTyp).
 
-Notation closed t := (scoped 0 t).
-*)
+(* Typing Notation *)
 
 Reserved Notation "Γ ⊢ t : A"
   (at level 80, t, A at next level).
@@ -47,28 +62,28 @@ Inductive conversion : term → term → Prop :=
 (** Computation rules *)
 
 | conv_beta :
-    ∀ A t u,
-      app (lam A t) u ≡ t <[ u .. ]
+    ∀ s s' A t u,
+      app s s' (lam s s' A t) u ≡ t <[ u .. ]
 
 (** Congruence rules *)
 
 | cong_Pi :
-    ∀ A A' B B',
+    ∀ s s' A A' B B',
       A ≡ A' →
       B ≡ B' →
-      Pi A B ≡ Pi A' B'
+      Pi s s' A B ≡ Pi s s' A' B'
 
 | cong_lam :
-    ∀ A A' t t',
+    ∀ s s' A A' t t',
       A ≡ A' →
       t ≡ t' →
-      lam A t ≡ lam A' t'
+      lam s s' A t ≡ lam s s' A' t'
 
 | cong_app :
-    ∀ u u' v v',
+    ∀ s s' u u' v v',
       u ≡ u' →
       v ≡ v' →
-      app u v ≡ app u' v'
+      app s s' u v ≡ app s s' u' v'
 
 (** Structural rules *)
 
@@ -104,22 +119,22 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
     ∀ s s' i j A B,
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
-      Γ ⊢ Pi A B : Sort s' (max i j)
+      Γ ⊢ Pi s s' A B : Sort s' (max i j)
                         
 | stype_lam :
     ∀ s s' i j A B t,
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
       Γ ,, A ⊢ t : B →
-      Γ ⊢ lam A t : Pi A B
+      Γ ⊢ lam s s' A t : Pi s s' A B
 
 | stype_app :
     ∀ s s' i j A B t u,
-      Γ ⊢ t : Pi A B →
+      Γ ⊢ t : Pi s s' A B →
       Γ ⊢ u : A →
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
-      Γ ⊢ app t u : B <[ u .. ]
+      Γ ⊢ app s s' t u : B <[ u .. ]
 
 | stype_conv :
     ∀ s i A B t,
@@ -145,22 +160,22 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
     ∀ i j A B,
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
-      Γ ⊨ Pi A B : Typ (max i j)
+      Γ ⊨ Pi_T A B : Typ (max i j)
                         
 | ttype_lam :
     ∀ i j A B t,
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
       Γ ,, A ⊨ t : B →
-      Γ ⊨ lam A t : Pi A B
+      Γ ⊨ lam_T A t : Pi_T A B
 
 | ttype_app :
     ∀ i j A B t u,
-      Γ ⊨ t : Pi A B →
+      Γ ⊨ t : Pi_T A B →
       Γ ⊨ u : A →
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
-      Γ ⊨ app t u : B <[ u .. ]
+      Γ ⊨ app_T t u : B <[ u .. ]
 
 | ttype_conv :
     ∀ i A B t,
@@ -173,13 +188,34 @@ where "Γ ⊨ t : A" := (ttyping Γ t A).
 
 (** ** Context formation *)
 
-Inductive wf : ctx → Prop :=
-| wf_nil : wf ∙
+(*
+Inductive wf (typing : ctx → term → term → Prop) : ctx → Prop :=
+| wf_nil : wf _ ∙
 | wf_cons :
     ∀ Γ s i A,
-      wf Γ →
+      wf typing Γ →
+      typing Γ A (Sort s i) →
+      wf typing (Γ ,, A).
+
+Notation swf := (wf styping).
+Notation twf := (wf ttyping).
+ *)
+
+Inductive swf : ctx → Prop :=
+| swf_nil : swf ∙
+| swf_cons :
+    ∀ Γ s i A,
+      swf Γ →
       Γ ⊢ A : Sort s i →
-      wf (Γ ,, A).
+      swf (Γ ,, A).
+
+Inductive twf : ctx → Prop :=
+| wf_nil : twf ∙
+| wf_cons :
+    ∀ Γ i A,
+      twf Γ →
+      Γ ⊨ A : Typ i →
+      twf (Γ ,, A).
 
 (** Automation *)
 

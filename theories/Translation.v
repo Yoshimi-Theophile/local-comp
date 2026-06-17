@@ -10,13 +10,16 @@ Import CombineNotations.
 Require Import Equations.Prop.DepElim.
 
 Set Default Goal Selector "!".
-(*
+
 Section Translation.
 
   Reserved Notation "[ t ]" (at level 0). 
   Reserved Notation "⟦ t ⟧" (at level 0).
   Reserved Notation "[ k ]ₜ" (at level 0).
 
+(* Fixpoint tl_P *)
+  
+(*
   Fixpoint inline (t : term) :=
     match t with
     | var n => var n

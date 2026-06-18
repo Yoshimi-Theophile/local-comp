@@ -1,7 +1,7 @@
 From Stdlib Require Import Utf8 String List Arith Lia.
 From LocalComp.autosubst Require Import unscoped AST SubstNotations RAsimpl
   AST_rasimpl.
-From LocalComp Require Import Util BasicAST Env Inst Typing BasicMetaTheory.
+From LocalComp Require Import Util BasicAST Typing BasicMetaTheory.
 From Stdlib Require Import Setoid Morphisms Relation_Definitions.
 
 Import ListNotations.
@@ -13,9 +13,24 @@ Set Default Goal Selector "!".
 
 Section Translation.
 
-  Reserved Notation "[ t ]" (at level 0). 
-  Reserved Notation "⟦ t ⟧" (at level 0).
-  Reserved Notation "[ k ]ₜ" (at level 0).
+  Reserved Notation "[ t ]'p'" (at level 0). 
+  Reserved Notation "⟦ t ⟧'p'" (at level 0).
+  Reserved Notation "⟦ k ⟧'t'" (at level 0).
+
+  Definition scope := list sort.
+
+  Definition isPTyp (Γ : scope) x : bool :=
+    match nth_error Γ x with
+    | Some S_PTyp => true
+    | _ => false
+    end.
+  
+  (* TODO *)
+  (* add unit to term *)
+  (* add Σ to term *)
+  
+  Fixpoint tlTyp (Γ : scope) (t : term) : term :=
+    t.  
 
 (* Fixpoint tl_P *)
   

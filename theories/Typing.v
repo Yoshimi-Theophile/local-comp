@@ -85,6 +85,28 @@ Inductive conversion : term → term → Prop :=
       v ≡ v' →
       app s s' u v ≡ app s s' u' v'
 
+| cong_Sigma :
+  ∀ A A' B B',
+    A ≡ A' →
+    B ≡ B' →
+    Sigma A B ≡ Sigma A' B'
+
+| cong_sig :
+  ∀ t t' u u',
+    t ≡ t' →
+    u ≡ u' →
+    sig t u ≡ sig t' u'
+
+| cong_pi1 :
+  ∀ t t',
+    t ≡ t' →
+    pi1 t ≡ pi1 t'
+
+| cong_pi2 :
+  ∀ t t',
+    t ≡ t' →
+    pi2 t ≡ pi2 t'
+
 (** Structural rules *)
 
 | conv_refl :
@@ -115,7 +137,7 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
     ∀ s i,
       Γ ⊢ Sort s i : Sort s (S i)
 
-| stype_pi :
+| stype_Pi :
     ∀ s s' i j A B,
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
@@ -156,7 +178,7 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
     ∀ i,
       Γ ⊨ Typ i : Typ (S i)
                       
-| ttype_pi :
+| ttype_Pi :
     ∀ i j A B,
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
@@ -177,6 +199,40 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
       Γ ,, A ⊨ B : Typ j →
       Γ ⊨ app_T t u : B <[ u .. ]
 
+| ttype_unit :
+    ∀ i, Γ ⊨ unit i : Typ i
+
+| ttype_tt :
+    ∀ i, Γ ⊨ tt i : unit i
+
+| ttype_Sigma :
+    ∀ i j A B,
+      Γ ⊨ A : Typ i →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ⊨ Sigma A B : Typ (max i j)
+                         
+| ttype_sig :
+    ∀ i j A B t u,
+      Γ ⊨ A : Typ i → 
+      Γ ⊨ t : A →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ,, A ⊨ u : B →
+      Γ ⊨ sig t u : Sigma A B
+
+| ttype_pi1 :
+    ∀ i j A B t,
+      Γ ⊨ A : Typ i →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ⊨ t : Sigma A B →
+      Γ ⊨ pi1 t : A
+
+| ttype_pi2 :
+    ∀ i j A B t,
+      Γ ⊨ A : Typ i →
+      Γ ,, A ⊨ B : Typ j →
+      Γ ⊨ t : Sigma A B →
+      Γ ⊨ pi2 t : B <[ (pi1 t) .. ]
+                    
 | ttype_conv :
     ∀ i A B t,
       Γ ⊨ t : A →
@@ -187,19 +243,6 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
 where "Γ ⊨ t : A" := (ttyping Γ t A).
 
 (** ** Context formation *)
-
-(*
-Inductive wf (typing : ctx → term → term → Prop) : ctx → Prop :=
-| wf_nil : wf _ ∙
-| wf_cons :
-    ∀ Γ s i A,
-      wf typing Γ →
-      typing Γ A (Sort s i) →
-      wf typing (Γ ,, A).
-
-Notation swf := (wf styping).
-Notation twf := (wf ttyping).
- *)
 
 Inductive swf : ctx → Prop :=
 | swf_nil : swf ∙
@@ -225,11 +268,11 @@ Create HintDb type discriminated.
 Hint Resolve conv_beta cong_Pi cong_lam cong_app conv_refl
 : conv.
 
-Hint Resolve stype_var stype_sort stype_pi
-  stype_lam stype_app
+Hint Resolve stype_var stype_sort stype_Pi stype_lam stype_app
   : type.
 
-Hint Resolve ttype_var ttype_typ ttype_pi ttype_lam ttype_app
+Hint Resolve ttype_var ttype_typ ttype_Pi ttype_lam ttype_app
+             ttype_unit ttype_tt ttype_Sigma ttype_sig ttype_pi1 ttype_pi2
 : type.
 
 Ltac ttconv :=

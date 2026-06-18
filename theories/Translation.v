@@ -30,7 +30,9 @@ Section Translation.
   (* add Σ to term *)
   
   Fixpoint tlTyp (Γ : scope) (t : term) : term :=
-    t.  
+    t.
+
+End Translation.
 
 (* Fixpoint tl_P *)
   

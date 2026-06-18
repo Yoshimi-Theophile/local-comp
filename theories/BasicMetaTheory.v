@@ -77,6 +77,44 @@ Lemma ttyping_ind :
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
       P Γ (app_T t u) (B <[ u..])
     ) →
+    (∀ Γ i, P Γ (unit i) (Typ i)) →
+    (∀ Γ i, P Γ (tt i) (unit i)) →
+    (∀ Γ i j A B,
+      Γ ⊨ A : Typ i →
+      P Γ A (Typ i) →
+      Γ,, A ⊨ B : Typ j →
+      P (Γ,, A) B (Typ j) →
+      P Γ (Sigma A B) (Typ (Nat.max i j))
+    ) →
+    (∀ Γ i j A B t u,
+      Γ ⊨ A : Typ i →
+      P Γ A (Typ i) →
+      Γ ⊨ t : A →
+      P Γ t A →
+      Γ,, A ⊨ B : Typ j →
+      P (Γ,, A) B (Typ j) →
+      Γ,, A ⊨ u : B →
+      P (Γ,, A) u B →
+      P Γ (sig t u) (Sigma A B)
+    ) →
+    (∀ Γ i j A B t,
+      Γ ⊨ A : Typ i →
+      P Γ A (Typ i) →
+      Γ,, A ⊨ B : Typ j →
+      P (Γ,, A) B (Typ j) →
+      Γ ⊨ t : Sigma A B →
+      P Γ t (Sigma A B) →
+      P Γ (pi1 t) A
+    ) →
+    (∀ Γ i j A B t,
+      Γ ⊨ A : Typ i →
+      P Γ A (Typ i) →
+      Γ,, A ⊨ B : Typ j →
+      P (Γ,, A) B (Typ j) →
+      Γ ⊨ t : Sigma A B →
+      P Γ t (Sigma A B) →
+      P Γ (pi2 t) (B <[ (pi1 t)..])
+    ) →
     (∀ Γ i A B t,
       Γ ⊨ t : A → P Γ t A → A ≡ B →
       Γ ⊨ B : Typ i → P Γ B (Typ i) →
@@ -84,13 +122,15 @@ Lemma ttyping_ind :
     ) →
     ∀ Γ t A, Γ ⊨ t : A → P Γ t A.
 Proof.
-  intros P hvar htyp hpi hlam happ hconv.
+  intros P hvar htyp hpi hlam happ hunit htt hSigma hsig hpi1 hpi2 hconv.
   fix aux 4. move aux at top.
   intros Γ t A h.
-  destruct h as [| | | | |].
+  destruct h as [| | | | | | | | | | |].
   all: try solve [eauto].
-  apply (happ _ i j A).
-  all: try solve [eauto].
+  - apply (happ _ i j A).
+    all: try solve [eauto].
+  - apply (hsig _ i j).
+    all: try solve [eauto].
 Qed.
 
 (** Renaming preserves typing *)
@@ -234,6 +274,12 @@ Proof.
       as <- by now rasimpl.
     econstructor. all: eauto.
     eauto using rtyping_up.
+  - rasimpl in IHht3.
+    assert (((0 .: ρ >> S) ⋅ B) <[ (pi1 (t <[ ρ >> var]))..] =
+              B <[ pi1 (t <[ ρ >> var]) .: ρ >> var]) as <- by now rasimpl.
+    assert (ρ ⋅ t = t <[ ρ >> var]) as <- by now rasimpl.
+    econstructor. all: eauto.
+    eauto using rtyping_up.
   - rasimpl in IHht2.
     econstructor. all: eauto.
     now apply conv_ren.
@@ -252,6 +298,7 @@ Inductive σtyping (typing : ctx → term → term → Prop)
 #[export] Instance σtyping_morphism :
 Proper (eq ==> eq ==> pointwise_relation _ eq ==> eq ==> iff) σtyping.
 Proof.
+
   intros jmt ? <- Γ ? <- σ σ' e Δ ? <-.
   revert σ σ' e. wlog_iff. intros σ σ' e h.
   induction h as [| ? ? ? ? ih ? ] in σ', e |- *.
@@ -380,6 +427,9 @@ Proof.
   - assert ((B <[ up_term_term σ]) <[ (u <[ σ])..] = (B <[ u..]) <[ σ])
       as <- by now rasimpl.
     cbn in *. econstructor ; eauto using σttyping_up.
+  - assert ((B <[ up_term_term σ]) <[ ((pi1 t) <[ σ])..] = (B <[ (pi1 t)..]) <[ σ])
+      as <- by now rasimpl.
+    econstructor ; eauto using σttyping_up.
   - econstructor. 1,3: eauto.
     eapply conv_subst. eassumption.
 Qed.
@@ -521,13 +571,20 @@ Proof.
   intros hΓ h.
   induction h using ttyping_ind in hΓ |- *.
   all: try solve [ eexists ; econstructor ; intuition eauto using ttyping ].
-  3: eauto.
   - apply valid_twf. all: assumption.
   - exists j.
     assert (Typ j <[ u..] = Typ j) as <- by easy.
     apply (ttyping_subst (Γ,,A)).
     + now apply σttyping_one.
     + assumption.
+  - eauto.
+  - exists j.
+    assert (Typ j <[ (pi1 t)..] = Typ j) as <- by easy.
+    apply (ttyping_subst (Γ,,A)).
+    + apply σttyping_one.
+      econstructor. all: eauto.
+    + assumption.
+  - eauto.
 Qed.
 
 (** * Context conversion *)

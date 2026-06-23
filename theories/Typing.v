@@ -68,10 +68,10 @@ Inductive conversion : term → term → Prop :=
 (** Congruence rules *)
 
 | cong_Pi :
-    ∀ s s' A A' B B',
+    ∀ s s' i j A A' B B',
       A ≡ A' →
       B ≡ B' →
-      Pi s s' A B ≡ Pi s s' A' B'
+      Pi s s' i j A B ≡ Pi s s' i j A' B'
 
 | cong_lam :
     ∀ s s' A A' t t',
@@ -141,18 +141,18 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
     ∀ s s' i j A B,
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
-      Γ ⊢ Pi s s' A B : Sort s' (max i j)
+      Γ ⊢ Pi s s' i j A B : Sort s' (max i j)
                         
 | stype_lam :
     ∀ s s' i j A B t,
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
       Γ ,, A ⊢ t : B →
-      Γ ⊢ lam s s' A t : Pi s s' A B
+      Γ ⊢ lam s s' A t : Pi s s' i j A B
 
 | stype_app :
     ∀ s s' i j A B t u,
-      Γ ⊢ t : Pi s s' A B →
+      Γ ⊢ t : Pi s s' i j A B →
       Γ ⊢ u : A →
       Γ ⊢ A : Sort s i →
       Γ ,, A ⊢ B : Sort s' j →
@@ -182,28 +182,28 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
     ∀ i j A B,
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
-      Γ ⊨ Pi_T A B : Typ (max i j)
+      Γ ⊨ Pi_T i j A B : Typ (max i j)
                         
 | ttype_lam :
     ∀ i j A B t,
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
       Γ ,, A ⊨ t : B →
-      Γ ⊨ lam_T A t : Pi_T A B
+      Γ ⊨ lam_T A t : Pi_T i j A B
 
 | ttype_app :
     ∀ i j A B t u,
-      Γ ⊨ t : Pi_T A B →
+      Γ ⊨ t : Pi_T i j A B →
       Γ ⊨ u : A →
       Γ ⊨ A : Typ i →
       Γ ,, A ⊨ B : Typ j →
       Γ ⊨ app_T t u : B <[ u .. ]
 
 | ttype_unit :
-    ∀ i, Γ ⊨ unit i : Typ i
+    ∀ i, Γ ⊨ unit : Typ i
 
 | ttype_tt :
-    ∀ i, Γ ⊨ tt i : unit i
+    Γ ⊨ tt : unit
 
 | ttype_Sigma :
     ∀ i j A B,

@@ -13,10 +13,10 @@ Set Default Goal Selector "!".
 
 Section Translation.
 
-  Reserved Notation "[ t ]'p'" (at level 0). 
-  Reserved Notation "⟦ t ⟧'p'" (at level 0).
-  Reserved Notation "⟦ k ⟧'t'" (at level 0).
-
+  Reserved Notation "[ Γ | t ]p" (at level 0). 
+  Reserved Notation "⟦ t ⟧p" (at level 0).
+  Reserved Notation "⟦ k ⟧t" (at level 0).
+  
   Definition scope := list sort.
 
   Definition isPTyp (Γ : scope) x : bool :=
@@ -25,13 +25,58 @@ Section Translation.
     | _ => false
     end.
   
-  (* TODO *)
-  (* add unit to term *)
-  (* add Σ to term *)
-  
-  Fixpoint tlTyp (Γ : scope) (t : term) : term :=
-    t.
+  Fixpoint tl_tmP (Γ : scope) (t : term) : term :=
+    match t with
+    | var x =>
+        if (isPTyp Γ x) then var x else tt
 
+    | Sort s i =>
+        match s with
+        | S_Typ => unit
+        | S_PTyp => Typ i
+        end
+
+    | Pi s s' i j A B =>
+        match s' with
+        | S_Typ => unit
+        | S_PTyp =>
+            let A' :=
+              match s with
+              | S_Typ => unit
+              | S_PTyp => [Γ|A]p
+              end in
+            Pi_T i j A' [Γ|B]p
+        end
+          
+    | lam s s' A t =>
+        match s' with
+        | S_Typ => tt
+        | S_PTyp =>
+            let A' :=
+              match s with
+              | S_Typ => unit
+              | S_PTyp => [Γ|A]p
+              end in
+            lam_T A' [Γ|t]p
+        end
+
+    | app s s' t u =>
+        match s' with
+        | S_Typ => tt
+        | S_PTyp =>
+            let u' :=
+              match s with
+              | S_Typ => tt
+              | S_PTyp => [Γ|u]p
+              end in
+            app_T [Γ|t]p u'
+        end
+
+    | _ => unit (* inaccessible in styping *)                             
+    end
+
+    where "[ Γ | t ]p" := (tl_tmP Γ t).
+  
 End Translation.
 
 (* Fixpoint tl_P *)

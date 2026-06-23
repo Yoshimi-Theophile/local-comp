@@ -22,16 +22,16 @@ Lemma styping_ind :
     (∀ Γ s s' i j A B,
       Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
       Γ,, A ⊢ B : Sort s' j → P (Γ,, A) B (Sort s' j) →
-      P Γ (Pi s s' A B) (Sort s' (Nat.max i j))
+      P Γ (Pi s s' i j A B) (Sort s' (Nat.max i j))
     ) →
     (∀ Γ s s' i j A B t,
       Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
       Γ,, A ⊢ B : Sort s' j → P (Γ,, A) B (Sort s' j) →
       Γ,, A ⊢ t : B → P (Γ,, A) t B →
-      P Γ (lam s s' A t) (Pi s s' A B)
+      P Γ (lam s s' A t) (Pi s s' i j A B)
     ) →
     (∀ Γ s s' i j A B t u,
-      Γ ⊢ t : Pi s s' A B → P Γ t (Pi s s' A B) →
+      Γ ⊢ t : Pi s s' i j A B → P Γ t (Pi s s' i j A B) →
       Γ ⊢ u : A → P Γ u A →
       Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
       Γ,, A ⊢ B : Sort s' j → P (Γ,, A) B (Sort s' j) →
@@ -62,23 +62,23 @@ Lemma ttyping_ind :
     (∀ Γ i j A B,
       Γ ⊨ A : Typ i → P Γ A (Typ i) →
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
-      P Γ (Pi_T A B) (Typ (Nat.max i j))
+      P Γ (Pi_T i j A B) (Typ (Nat.max i j))
     ) →
     (∀ Γ i j A B t,
       Γ ⊨ A : Typ i → P Γ A (Typ i) →
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
       Γ,, A ⊨ t : B → P (Γ,, A) t B →
-      P Γ (lam_T A t) (Pi_T A B)
+      P Γ (lam_T A t) (Pi_T i j A B)
     ) →
     (∀ Γ i j A B t u,
-      Γ ⊨ t : Pi_T A B → P Γ t (Pi_T A B) →
+      Γ ⊨ t : Pi_T i j A B → P Γ t (Pi_T i j A B) →
       Γ ⊨ u : A → P Γ u A →
       Γ ⊨ A : Typ i → P Γ A (Typ i) →
       Γ,, A ⊨ B : Typ j → P (Γ,, A) B (Typ j) →
       P Γ (app_T t u) (B <[ u..])
     ) →
-    (∀ Γ i, P Γ (unit i) (Typ i)) →
-    (∀ Γ i, P Γ (tt i) (unit i)) →
+    (∀ Γ i, P Γ unit (Typ i)) →
+    (∀ Γ , P Γ tt unit) →
     (∀ Γ i j A B,
       Γ ⊨ A : Typ i →
       P Γ A (Typ i) →
@@ -570,6 +570,7 @@ Lemma tvalidity Γ t A :
 Proof.
   intros hΓ h.
   induction h using ttyping_ind in hΓ |- *.
+  7: exists 0; constructor.
   all: try solve [ eexists ; econstructor ; intuition eauto using ttyping ].
   - apply valid_twf. all: assumption.
   - exists j.
@@ -584,7 +585,7 @@ Proof.
     + apply σttyping_one.
       econstructor. all: eauto.
     + assumption.
-  - eauto.
+  - eauto. 
 Qed.
 
 (** * Context conversion *)

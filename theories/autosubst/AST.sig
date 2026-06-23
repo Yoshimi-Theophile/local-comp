@@ -8,12 +8,12 @@ term(var) : Type
 
 Sort : sort -> level -> term
 
-Pi : sort -> sort -> term -> (bind term in term) -> term
+Pi : sort -> sort -> level -> level -> term -> (bind term in term) -> term
 lam : sort -> sort -> term -> (bind term in term) -> term
 app : sort -> sort -> term -> term -> term
 
-unit : level -> term
-tt : level -> term
+unit : term
+tt :   term
 
 Sigma : term -> (bind term in term) -> term
 sig : term -> (bind term in term) -> term

@@ -13,12 +13,9 @@ Set Default Goal Selector "!".
 
 Section Translation.
 
-  Reserved Notation "[ Γ | t ]p" (at level 0). 
-  Reserved Notation "⟦ t ⟧p" (at level 0).
-  Reserved Notation "⟦ k ⟧t" (at level 0).
+  Reserved Notation "[ Γ ]c" (at level 0).
+  Reserved Notation "[ Γ | t ]" (at level 0). 
   
-  Definition scope := list sort.
-
   Definition isPTyp (Γ : scope) x : bool :=
     match nth_error Γ x with
     | Some S_PTyp => true
@@ -43,9 +40,9 @@ Section Translation.
             let A' :=
               match s with
               | S_Typ => unit
-              | S_PTyp => [Γ|A]p
+              | S_PTyp => [Γ|A]
               end in
-            Pi_T i j A' [Γ|B]p
+            Pi_T i j A' [s :: Γ|B]
         end
           
     | lam s s' A t =>
@@ -55,9 +52,9 @@ Section Translation.
             let A' :=
               match s with
               | S_Typ => unit
-              | S_PTyp => [Γ|A]p
+              | S_PTyp => [Γ|A]
               end in
-            lam_T A' [Γ|t]p
+            lam_T A' [s :: Γ|t]
         end
 
     | app s s' t u =>
@@ -67,15 +64,170 @@ Section Translation.
             let u' :=
               match s with
               | S_Typ => tt
-              | S_PTyp => [Γ|u]p
+              | S_PTyp => [Γ|u]
               end in
-            app_T [Γ|t]p u'
+            app_T [Γ|t] u'
         end
 
     | _ => unit (* inaccessible in styping *)                             
     end
 
-    where "[ Γ | t ]p" := (tl_tmP Γ t).
+  where "[ Γ | t ]" := (tl_tmP Γ t).
+      
+  Fixpoint tl_ctxP (Γ : sctx) : tctx :=
+    match Γ with
+    | nil => ∙t
+    | cons (S_Typ, _) Γ => [Γ]c ,,t unit
+    | cons (S_PTyp, t) Γ => [Γ]c ,,t [sc Γ|t]
+    end
+  where "[ Γ ]c" := (tl_ctxP Γ).
+    
+  Lemma tl_typP Γ t A :
+    swf Γ →
+    Γ ⊢ t : A →
+    stc Γ t = S_PTyp →
+    [ Γ ]c ⊨ [sc Γ | t ] : [ sc Γ | A ].
+  Proof.
+    intros hΓ h hP.
+    induction h using styping_ind in hΓ, hP |- *.
+    - simpl. unfold isPTyp, sc at 1.
+      rewrite nth_error_map, H.
+      destruct s; simpl.
+      + unfold stc in hP.
+        assert (nth_error (sc Γ) x = Some S_Typ) as h
+            by now unfold sc; rewrite nth_error_map, H.
+        rewrite (nth_error_nth _ _ _ h) in hP.
+        discriminate.
+        (*
+        Print ren_term.
+        Print subst_term.
+        Set Printing All.
+        Print styping.
+         *)
+      + rasimpl.
+        assert ((Nat.add x >> S) ⋅ A = A <[Nat.add x >> S >> var])
+          as -> by now rasimpl.
+        admit.
+    - unfold stc in hP; subst.
+      constructor.
+    - unfold stc in hP; subst.
+      destruct s; simpl in *.
+      + constructor.
+        1: constructor.
+        apply IHh2.
+        all: admit.
+      + constructor.
+        * apply IHh1.
+          all: admit.
+        * all: admit.
+    - unfold stc in hP; subst.
+      destruct s; simpl in *.
+      + constructor.
+        1: constructor.
+        all: admit.
+      + constructor.
+        all: admit.
+    - unfold stc in hP; subst.
+      destruct s; simpl in *.
+      all: admit.
+    - admit.
+  Admitted.
+
+  Lemma styping_stc Γ t s i :
+    swf Γ →
+    Γ ⊢ t : Sort s i →
+    stc Γ t = s.
+  Proof.
+    intros hΓ h.
+    remember (Sort s i).
+    induction h using styping_ind.
+    all: simpl.
+    - assert (nth_error (sc Γ) x = Some s0) as h
+          by now unfold sc; rewrite nth_error_map, H.
+      assert (Nat.add (S x) ⋅ Sort s i = Sort s i) as h' by now rasimpl.
+      destruct A; try discriminate.
+      rasimpl in Heqt0.
+      injection Heqt0; intros -> ->.
+      admit.
+    - congruence.
+    - congruence.
+    - congruence.
+    - admit.
+    - Print conversion.
+      
+      
+      rewrite (nth_error_nth _ _ _ h).
+        
+
+  Reserved Notation "⟦ Γ | t ⟧" (at level 0).
+  Reserved Notation "⟦ Γ ⟧c" (at level 0).
+
+  Print sig.
+  
+  Fixpoint Tl_tm (Γ : scope) (t : term) : term :=
+    match t with
+    | var x =>
+        unit
+        (* if (isPTyp Γ x) then sig [Γ|x] else tt *)
+
+    | Sort s i =>
+        match s with
+        | S_Typ => Typ i
+        | S_PTyp => lam_T (Typ i) (Pi_T i (S i) (var 0) (Typ i))
+        end
+
+    | _ => unit
+    end.
+
+  (*
+    | Pi s s' i j A B =>
+        match s' with
+        | S_Typ => unit
+        | S_PTyp =>
+            let A' :=
+              match s with
+              | S_Typ => unit
+              | S_PTyp => [Γ|A]
+              end in
+            Pi_T i j A' [Γ|B]
+        end
+          
+    | lam s s' A t =>
+        match s' with
+        | S_Typ => tt
+        | S_PTyp =>
+            let A' :=
+              match s with
+              | S_Typ => unit
+              | S_PTyp => [Γ|A]
+              end in
+            lam_T A' [Γ|t]
+        end
+
+    | app s s' t u =>
+        match s' with
+        | S_Typ => tt
+        | S_PTyp =>
+            let u' :=
+              match s with
+              | S_Typ => tt
+              | S_PTyp => [Γ|u]
+              end in
+            app_T [Γ|t] u'
+        end
+
+    | _ => unit (* inaccessible in styping *)                             
+    end
+*)
+  where "[ Γ | t ]" := (tl_tmP Γ t).
+      
+  Fixpoint tl_ctxP (Γ : sctx) : tctx :=
+    match Γ with
+    | nil => ∙t
+    | cons (S_Typ, _) Γ => [Γ]c ,,t unit
+    | cons (S_PTyp, t) Γ => [Γ]c ,,t [sc Γ|t]
+    end
+  where "[ Γ ]c" := (tl_ctxP Γ).
   
 End Translation.
 

@@ -15,15 +15,30 @@ Open Scope subst_scope.
 
 (* Contexts *)
 
-Definition ctx := list term.
+Notation sctx := (list (sort * term)).
+Notation scope := (list sort).
+
+Notation tctx := (list term).
+
+Definition sc (Γ : sctx) : scope :=
+  map fst Γ.
   
-Notation "'∙'" :=
+Notation "'∙s'" :=
+  (@nil (sort * term)).
+
+Notation "Γ ,,s d" :=
+  (@cons (sort * term) d Γ) (at level 20, d at next level).
+
+Notation "Γ ,,,s Δ" :=
+  (@List.app (sort * term) Δ Γ) (at level 25, Δ at next level, left associativity).
+
+Notation "'∙t'" :=
   (@nil term).
 
-Notation "Γ ,, d" :=
+Notation "Γ ,,t d" :=
   (@cons term d Γ) (at level 20, d at next level).
 
-Notation "Γ ,,, Δ" :=
+Notation "Γ ,,,t Δ" :=
   (@List.app term Δ Γ) (at level 25, Δ at next level, left associativity).
 
 (* Typing Notation *)
@@ -45,6 +60,61 @@ Notation app_T := (app S_Typ S_Typ).
 Notation app_P := (app S_PTyp S_PTyp).
 Notation app_PT := (app S_PTyp S_Typ).
 Notation app_TP := (app S_Typ S_PTyp).
+
+(* Scoping *)
+
+Inductive scoping (Γ : scope) : term → sort → Prop :=
+
+| scope_var :
+    ∀ x s,
+      nth_error Γ x = Some s →
+      scoping Γ (var x) s
+
+| scope_sort :
+    ∀ s i,
+      scoping Γ (Sort s i) s
+
+| scope_pi :
+    ∀ i j s s' A B,
+      scoping Γ A s →
+      scoping (s :: Γ) B s' →
+      scoping Γ (Pi s s' i j A B) s'
+
+| scope_lam :
+    ∀ s s' A t,
+      scoping Γ A s →
+      scoping (s :: Γ) t s' →
+      scoping Γ (lam s s' A t) s'
+
+| scope_app :
+    ∀ s s' t u,
+      scoping Γ t s' →
+      scoping Γ u s →
+      scoping Γ (app s s' t u) s'.
+
+Notation cscoping Γ := (scoping (sc Γ)).
+
+Definition st (Γ : scope) (t : term) : sort :=
+  match t with
+  | var x => List.nth x Γ S_Typ
+  | Sort s l => s
+  | Pi _ s' _ _ _ _  => s'
+  | lam _ s' _ _ => s'
+  | app _ s' _ _ => s'
+  | _ => S_Typ
+  end.
+
+Notation stc Γ t := (st (sc Γ) t).
+
+Lemma scoping_md :
+  ∀ Γ t m,
+    scoping Γ t m →
+    st Γ t = m.
+Proof.
+  intros Γ t m h.
+  induction h. all: try reflexivity.
+  now apply nth_error_nth.
+Qed.
 
 (* Typing Notation *)
 
@@ -126,11 +196,11 @@ Inductive conversion : term → term → Prop :=
 
 where "u ≡ v" := (conversion u v).
 
-Inductive styping (Γ : ctx) : term → term → Prop :=
+Inductive styping (Γ : sctx) : term → term → Prop :=
 
 | stype_var :
-    ∀ x A,
-      nth_error Γ x = Some A →
+    ∀ x A s,
+      nth_error Γ x = Some (s, A) →
       Γ ⊢ var x : (plus (S x)) ⋅ A
 
 | stype_sort :
@@ -140,14 +210,14 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
 | stype_Pi :
     ∀ s s' i j A B,
       Γ ⊢ A : Sort s i →
-      Γ ,, A ⊢ B : Sort s' j →
+      Γ ,,s (s, A) ⊢ B : Sort s' j →
       Γ ⊢ Pi s s' i j A B : Sort s' (max i j)
                         
 | stype_lam :
     ∀ s s' i j A B t,
       Γ ⊢ A : Sort s i →
-      Γ ,, A ⊢ B : Sort s' j →
-      Γ ,, A ⊢ t : B →
+      Γ ,,s (s, A) ⊢ B : Sort s' j →
+      Γ ,,s (s, A) ⊢ t : B →
       Γ ⊢ lam s s' A t : Pi s s' i j A B
 
 | stype_app :
@@ -155,7 +225,7 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
       Γ ⊢ t : Pi s s' i j A B →
       Γ ⊢ u : A →
       Γ ⊢ A : Sort s i →
-      Γ ,, A ⊢ B : Sort s' j →
+      Γ ,,s (s, A) ⊢ B : Sort s' j →
       Γ ⊢ app s s' t u : B <[ u .. ]
 
 | stype_conv :
@@ -167,7 +237,7 @@ Inductive styping (Γ : ctx) : term → term → Prop :=
 
 where "Γ ⊢ t : A" := (styping Γ t A).
 
-Inductive ttyping (Γ : ctx) : term → term → Prop :=
+Inductive ttyping (Γ : tctx) : term → term → Prop :=
 
 | ttype_var :
     ∀ x A,
@@ -181,14 +251,14 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
 | ttype_Pi :
     ∀ i j A B,
       Γ ⊨ A : Typ i →
-      Γ ,, A ⊨ B : Typ j →
+      Γ ,,t A ⊨ B : Typ j →
       Γ ⊨ Pi_T i j A B : Typ (max i j)
                         
 | ttype_lam :
     ∀ i j A B t,
       Γ ⊨ A : Typ i →
-      Γ ,, A ⊨ B : Typ j →
-      Γ ,, A ⊨ t : B →
+      Γ ,,t A ⊨ B : Typ j →
+      Γ ,,t A ⊨ t : B →
       Γ ⊨ lam_T A t : Pi_T i j A B
 
 | ttype_app :
@@ -196,7 +266,7 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
       Γ ⊨ t : Pi_T i j A B →
       Γ ⊨ u : A →
       Γ ⊨ A : Typ i →
-      Γ ,, A ⊨ B : Typ j →
+      Γ ,,t A ⊨ B : Typ j →
       Γ ⊨ app_T t u : B <[ u .. ]
 
 | ttype_unit :
@@ -208,28 +278,28 @@ Inductive ttyping (Γ : ctx) : term → term → Prop :=
 | ttype_Sigma :
     ∀ i j A B,
       Γ ⊨ A : Typ i →
-      Γ ,, A ⊨ B : Typ j →
+      Γ ,,t A ⊨ B : Typ j →
       Γ ⊨ Sigma A B : Typ (max i j)
                          
 | ttype_sig :
     ∀ i j A B t u,
       Γ ⊨ A : Typ i → 
       Γ ⊨ t : A →
-      Γ ,, A ⊨ B : Typ j →
-      Γ ,, A ⊨ u : B →
+      Γ ,,t A ⊨ B : Typ j →
+      Γ ,,t A ⊨ u : B →
       Γ ⊨ sig t u : Sigma A B
 
 | ttype_pi1 :
     ∀ i j A B t,
       Γ ⊨ A : Typ i →
-      Γ ,, A ⊨ B : Typ j →
+      Γ ,,t A ⊨ B : Typ j →
       Γ ⊨ t : Sigma A B →
       Γ ⊨ pi1 t : A
 
 | ttype_pi2 :
     ∀ i j A B t,
       Γ ⊨ A : Typ i →
-      Γ ,, A ⊨ B : Typ j →
+      Γ ,,t A ⊨ B : Typ j →
       Γ ⊨ t : Sigma A B →
       Γ ⊨ pi2 t : B <[ (pi1 t) .. ]
                     
@@ -244,21 +314,21 @@ where "Γ ⊨ t : A" := (ttyping Γ t A).
 
 (** ** Context formation *)
 
-Inductive swf : ctx → Prop :=
-| swf_nil : swf ∙
+Inductive swf : sctx → Prop :=
+| swf_nil : swf ∙s
 | swf_cons :
     ∀ Γ s i A,
       swf Γ →
       Γ ⊢ A : Sort s i →
-      swf (Γ ,, A).
+      swf (Γ ,,s (s, A)).
 
-Inductive twf : ctx → Prop :=
-| wf_nil : twf ∙
+Inductive twf : tctx → Prop :=
+| wf_nil : twf ∙t
 | wf_cons :
     ∀ Γ i A,
       twf Γ →
       Γ ⊨ A : Typ i →
-      twf (Γ ,, A).
+      twf (Γ ,,t A).
 
 (** Automation *)
 

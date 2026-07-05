@@ -99,20 +99,20 @@ Definition st (Γ : scope) (t : term) : sort :=
   | var x => List.nth x Γ S_Typ
   | Sort s l => s
   | Pi _ s' _ _ _ _  => s'
-  | lam _ s' _ _ => s'
+  | lam _ s' _ t => s'
   | app _ s' _ _ => s'
   | _ => S_Typ
   end.
 
 Notation stc Γ t := (st (sc Γ) t).
 
-Lemma scoping_md :
-  ∀ Γ t m,
-    scoping Γ t m →
-    st Γ t = m.
+Lemma scoping_st Γ t s :
+    scoping Γ t s →
+    st Γ t = s.
 Proof.
-  intros Γ t m h.
+  intros h.
   induction h. all: try reflexivity.
+  all: try solve [ auto ].
   now apply nth_error_nth.
 Qed.
 

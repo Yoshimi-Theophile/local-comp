@@ -232,10 +232,15 @@ Proof.
   induction t in Γ, Δ, ρ, hρ, hcρ |- *.
   all: try reflexivity.
   all: try solve [ cbn ; eauto ].
-  cbn. rewrite 2!nth_nth_error.
-  destruct (nth_error Δ n) eqn:e.
-  - eapply hρ in e. rewrite e. reflexivity.
-  - eapply hcρ in e. rewrite e. reflexivity.
+  - cbn. rewrite 2!nth_nth_error.
+    destruct (nth_error Δ n) eqn:e.
+    + eapply hρ in e. rewrite e. reflexivity.
+    + eapply hcρ in e. rewrite e. reflexivity.
+      (*
+  - cbn. eapply IHt2.
+    + eapply rscoping_shift. assumption.
+    + eapply rscoping_comp_upren. assumption.
+*)
 Qed.
 
 Lemma st_subst Γ Δ σ t :
@@ -247,16 +252,21 @@ Proof.
   induction t in Γ, Δ, σ, hσ, hcσ |- *.
   all: try reflexivity.
   all: try solve [ cbn ; eauto ].
-  cbn. rewrite nth_nth_error.
-  destruct (nth_error Δ n) eqn:e.
-  - clear hcσ. induction hσ as [| σ Δ mx hσ ih hm] in n, s, e |- *.
-    1: destruct n ; discriminate.
-    destruct n.
-    + cbn in *. noconf e.
-      erewrite scoping_md. 2: eassumption. reflexivity.
-    + cbn in e. eapply ih. assumption.
-  - eapply hcσ in e. destruct e as [m [e1 e2]].
-    rewrite e1. cbn. rewrite nth_nth_error. rewrite e2. reflexivity.
+  - cbn. rewrite nth_nth_error.
+    destruct (nth_error Δ n) eqn:e.
+    + clear hcσ. induction hσ as [| σ Δ mx hσ ih hm] in n, s, e |- *.
+      1: destruct n ; discriminate.
+      destruct n.
+      * cbn in *. noconf e.
+        erewrite scoping_st. 2: eassumption. reflexivity.
+      * cbn in e. eapply ih. assumption.
+    + eapply hcσ in e. destruct e as [m [e1 e2]].
+      rewrite e1. cbn. rewrite nth_nth_error. rewrite e2. reflexivity.
+(*
+  - cbn. eapply IHt2.
+    + eapply σscoping_shift. assumption.
+    + eapply σscoping_comp_shift. assumption.
+*)
 Qed.
 
 Lemma σscoping_comp_one :
@@ -269,45 +279,21 @@ Proof.
   - cbn in e. cbn. eexists. intuition eauto.
 Qed.
 
-(*
-Lemma conv_st Γ u v :
+Lemma conv_st Γ u v s :
     u ≡ v →
-    stc Γ u = stc Γ v.
+    scoping Γ u s ↔ scoping Γ v s.
 Proof.
   intros h.
-  induction h.
-  all: try solve [ cbn ; reflexivity ].
-  all: try solve [ cbn ; eauto ].
-  - Print st.
-    cbn. erewrite st_subst.
-    3: eapply σscoping_comp_one.
-    
-    2: eapply σscoping_one; eassumption.
-    2: eapply sscoping_comp_one.
-    reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-    cbn in H2. destruct H2 as [| []]. 3: contradiction.
-    all: subst. all: reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-    reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-    reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-    reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-    reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-    reflexivity.
-  - cbn. erewrite scoping_md. 2: eassumption.
-
-    reflexivity.
-  - cbn. rewrite IHh3. reflexivity.
-  - etransitivity. all: eassumption.
-
-  - erewrite 2!scoping_md. 2,3: eassumption.
-    reflexivity.
-Qed.
-*)
+  induction h in s |- *.
+  - split; intros h.
+    + inversion h; subst.
+      inversion H4; subst.
+      apply (scoping_subst _ (s0 :: Γ)).
+      1: now apply σscoping_one.
+      assumption.
+    + admit.
+  - 
+Admitted.
 
 (** Better induction principle for [styping] *)
 
@@ -713,6 +699,15 @@ Qed.
 #[export] Hint Rewrite -> autosubst_simpl_σstyping : rasimpl_outermost.
 #[export] Hint Rewrite -> autosubst_simpl_σttyping : rasimpl_outermost.
 
+Lemma styping_scoping Γ Δ σ :
+    σstyping Γ σ Δ →
+    σscoping (sc Γ) σ (sc Δ).
+Proof.
+  intros h. induction h.
+  - constructor.
+  - cbn. constructor. all: assumption.
+Qed.
+
 Lemma σstyping_weak Γ Δ σ A s :
   σstyping Γ σ Δ →
   σstyping (Γ,,s (s, A)) (σ >> ren_term S) Δ.
@@ -722,11 +717,12 @@ Proof.
   - constructor.
   - constructor.
     1: assumption.
-    + admit.
+    + eapply scoping_ren. 2: eassumption.
+      apply rscoping_S.
     + assert (S ⋅ A0 <[ S >> σ] = A0 <[ S >> (σ >> ren_term S)]) as <- by now rasimpl.
       eapply styping_ren. 2: eassumption.
       apply rstyping_S.
-Admitted.
+Qed.
 
 Lemma σstyping_up Γ Δ A σ s :
   σstyping Γ σ Δ →
@@ -832,10 +828,10 @@ Proof.
   - constructor.
     + eapply σstyping_weak with (s := s) (A := A) in ih.
       assumption.
-    + admit.
+    + now constructor.
     + assert (Init.Nat.add 1 ⋅ A = A <[ S >> ids]) as <- by now rasimpl; substify.
       now econstructor.
-Admitted.
+Qed.
 
 Lemma σstyping_one Γ A u s :
   cscoping Γ u s →

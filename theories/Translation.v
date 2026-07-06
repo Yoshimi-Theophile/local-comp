@@ -124,6 +124,19 @@ Section Translation.
     now rewrite <-(styping_stc Γ t B hΓ h).
   Qed.
 
+  Lemma styping_scoping_stc_bw Γ t B :
+    swf Γ →
+    Γ ⊢ t : B → 
+    scoping (sc Γ) B (stc Γ t).
+  Proof.
+    intros hΓ h.
+    pose (svalidity _ _ _ hΓ h) as h'.
+    destruct h' as [h1 [i h2]].
+    pose (svalidity _ _ _ hΓ h2) as h''.
+    destruct h'' as [h3 [j h4]].
+    apply type_sort_inv, conv_sort in h4.
+    now rewrite <-h4.
+  Qed.
   
   Lemma rscoping_upren :
   ∀ Γ Δ m ρ,
@@ -183,10 +196,6 @@ Section Translation.
       destruct s; rewrite (IHΓ _ A).
       all: easy.
   Qed.
-
-  (* 
-scoping Γ t S_PTyp →
-    *)
   
   Lemma tl_subst Γ Δ σ t :
     σscoping Γ σ Δ →
@@ -220,23 +229,37 @@ scoping Γ t S_PTyp →
       1: reflexivity.
       destruct s.
       all: rasimpl.
-      + f_equal.
-        rewrite (IHt2 _ (S_Typ :: Δ)).
-        * f_equal.
-          rewrite core.funcomp_assoc.
+      + erewrite IHt2.
+        2:{ eapply σscoping_shift. eassumption. }
+        2:{ rasimpl. eapply σscoping_comp_shift. assumption. }
+        * admit.
+        * eapply scoping_subst.
+          1: eapply σscoping_shift; eassumption.
+          inversion hP; subst.
+          admit.
+      + erewrite IHt1.
+        2,3: eauto.
+        2: now inversion hP.
+        erewrite IHt2.
+        2:{ eapply σscoping_shift. eassumption. }
+        2:{ rasimpl. eapply σscoping_comp_shift. assumption. }
+        * admit.
+        * eapply scoping_subst.
+          1: eapply σscoping_shift; eassumption.
+          inversion hP; subst.
+          admit.
+    - admit.
+    - admit.    
   Admitted.
   
   Lemma tl_conv Γ u v :
     u ≡ v →
+    scoping (sc Γ) u S_PTyp →
     [ sc Γ | u ] ≡ [ sc Γ | v ].
   Proof.
-    intros h.
-    induction h.
-    all: simpl.
-    - destruct s'.
-      + admit.
-      + admit.
-    
+    intros h hP.
+    induction h in Γ, hP |- *.
+    - 
   Admitted.
 
   Lemma tl_typP Γ t A :
@@ -320,22 +343,54 @@ scoping Γ t S_PTyp →
       apply scoping_st in hP.
       unfold stc in hP; subst.
       destruct s; simpl in *.
-      + Check tl_subst.
-        rewrite (tl_subst _ (S_Typ :: sc Γ)).
-        all: admit.
-          (*change (u.. >> tl_tmP (sc Γ)) with ([sc Γ | u]..).
-
-          apply (ttype_conv _ j ([S_Typ :: sc Γ | B])).
-          Check ttype_app.
-           *)
+      + rewrite (tl_subst _ (S_Typ :: sc Γ)).
+        * assert
+            ([S_Typ :: sc Γ | B] <[ u.. >> tl_tmP (sc Γ)] =
+             [S_Typ :: sc Γ | B] <[ [ sc Γ | u].. ]) as ->.
+          {
+            rasimpl.
+            admit.
+          }
           
-         (* [sc Γ | B <[ u..]] = [sc Γ | B] <[ [sc Γ | u].. ] (?) *)
-      + admit.
+          assert (tt = [sc Γ | u]) as -> by admit.
+          eapply ttype_app.
+          
+        * apply σscoping_one. change S_Typ with (stc Γ (Typ i)).
+          assert ((stc Γ A) = (stc Γ (Typ i))) as <- by now apply styping_stc.
+          now apply styping_scoping_stc.
+        * apply σscoping_comp_one.
+        * apply (scoping_subst _ (S_Typ :: sc Γ)).
+          -- eapply σscoping_one. change S_Typ with (stc Γ (Typ i)).
+             assert ((stc Γ A) = (stc Γ (Typ i))) as <- by now apply styping_stc.
+             now apply styping_scoping_stc.
+          -- change (S_Typ :: sc Γ) with (sc (Γ ,,s (S_Typ, A))).
+             change S_PTyp with (stc (Γ ,,s (S_Typ, A)) (PTyp j)).
+             apply styping_scoping_stc.
+             2: assumption.
+             econstructor; eassumption.
+      + rewrite (tl_subst _ (S_PTyp :: sc Γ)).
+        * admit.
+        * apply σscoping_one. change S_PTyp with (stc Γ (PTyp i)).
+          assert ((stc Γ A) = (stc Γ (PTyp i))) as <- by now apply styping_stc.
+          now apply styping_scoping_stc.
+        * apply σscoping_comp_one.
+        * apply (scoping_subst _ (S_PTyp :: sc Γ)).
+          -- eapply σscoping_one. change S_PTyp with (stc Γ (PTyp i)).
+             assert ((stc Γ A) = (stc Γ (PTyp i))) as <- by now apply styping_stc.
+             now apply styping_scoping_stc.
+          -- change (S_PTyp :: sc Γ) with (sc (Γ ,,s (S_PTyp, A))).
+             change S_PTyp with (stc (Γ ,,s (S_PTyp, A)) (PTyp j)).
+             apply styping_scoping_stc.
+             2: assumption.
+             econstructor; eassumption.
     - assert (cscoping Γ t S_PTyp) as hP' by easy.
       apply scoping_st in hP.
       apply (ttype_conv _ i [sc Γ|A]).
       1: now apply IHh1.
-      + admit. (* A ≡ B → [sc Γ | A] ≡ [sc Γ | B] *)
+      + apply tl_conv.
+        1: assumption.
+        rewrite <-hP.
+        now apply styping_scoping_stc_bw.
       + rewrite (styping_stc _ _ _ hΓ (stype_conv _ _ _ _ _ _ h1 H h2)) in hP.
         rewrite (styping_stc _ _ _ hΓ h2) in hP.
         simpl in hP; subst.
@@ -345,33 +400,6 @@ scoping Γ t S_PTyp →
         change (S_PTyp) with (stc Γ (PTyp i)).
         now apply styping_scoping_stc.
   Admitted.
-
-  Lemma tl_subst Γ t u :
-    [sc Γ | t <[ u..]] = [sc Γ | t] <[ [sc Γ | u]..].
-  Proof.
-    induction t.
-    - rasimpl.
-      simpl.
-      Search subst_term.
-  Abort.
-
-  Lemma tl_equiv Γ A B s i :
-    Γ ⊢ B : Sort s i →
-    A ≡ B → [sc Γ | A] ≡ [sc Γ | B].
-  Proof.
-    intros hs h.
-    induction h in Γ, s, i, hs |- *.
-    - admit.
-    - destruct s', s0.
-      all: simpl.
-      1-2: constructor.
-      + constructor.
-        1: constructor.
-        admit.
-      + admit.
-    all: admit.
-  Admitted.
-
   
   (*
   Reserved Notation "⟦ Γ | t ⟧" (at level 0).

@@ -256,7 +256,7 @@ Section Translation.
       all: rasimpl.
       + 
   Admitted.
-
+    
   Lemma tl_subst_ignore Γ t A i σ τ :
     swf Γ →
     Γ ⊢ t : A →
@@ -264,6 +264,96 @@ Section Translation.
     (forall x, scoping (sc Γ) (var x) S_PTyp → σ x = τ x) → 
     [sc Γ | t] <[ σ ] = [sc Γ | t] <[ τ ].
   Proof.
+    intros hΓ h1 h2 h.
+    induction h1 using styping_ind in i, σ, τ, hΓ, h2, h |- *.
+    - simpl. unfold isPTyp, sc.
+      rewrite nth_error_map, H. simpl.
+      destruct s.
+      1: reflexivity.
+      apply h.
+      constructor. unfold sc.
+      now rewrite nth_error_map, H.
+    - destruct s; reflexivity.
+    - simpl.
+      destruct s'.
+      1: reflexivity. (* impossible case *)
+      destruct s.
+      + simpl in IHh1_2. simpl.
+        f_equal.
+        apply IHh1_2 with (i := S j).
+        1, 2: econstructor; eassumption.
+        intros x hx.
+        destruct x.
+        * reflexivity.
+        * apply (ap (ren_term shift)), h.
+          inversion hx; subst.
+          simpl in H0.
+          now constructor.
+      + simpl in *. simpl.
+        rewrite IHh1_1 with (i := S i0) (τ := τ).
+        2, 4: assumption.
+        2: constructor.
+        f_equal.
+        apply IHh1_2 with (i := S j).
+        1, 2: econstructor; eassumption.
+        intros x hx.
+        destruct x.
+        * reflexivity.
+        * apply (ap (ren_term shift)), h.
+          inversion hx; subst.
+          simpl in H0.
+          now constructor.
+    - simpl.
+      destruct s'.
+      1: reflexivity. (* impossible case *)
+      destruct s.
+      + simpl.
+        f_equal.
+        simpl in IHh1_3.
+        apply IHh1_3 with (i := j).
+        1: econstructor; eassumption.
+        1: eauto.
+        intros x hx.
+        destruct x.
+        * reflexivity.
+        * apply (ap (ren_term shift)), h.
+          inversion hx; subst.
+          simpl in H0.
+          now constructor.
+      + simpl in *. simpl.
+        rewrite IHh1_1 with (i := S i0) (τ := τ).
+        2, 4: assumption.
+        2: constructor.
+        f_equal.
+        apply IHh1_3 with (i := j).
+        1: econstructor; eassumption.
+        1: eauto.
+        intros x hx.
+        destruct x.
+        * reflexivity.
+        * apply (ap (ren_term shift)), h.
+          inversion hx; subst.
+          simpl in H0.
+          now constructor.
+    - simpl.
+      destruct s'.
+      1: reflexivity. (* impossible case *)
+      destruct s.
+      + simpl.
+        f_equal.
+        apply IHh1_1 with (i := max i0 j).
+        1, 3: assumption.
+        1: constructor; assumption.
+      + simpl in *. simpl.
+        rewrite IHh1_1 with (i := max i0 j) (τ := τ).
+        2, 4: assumption.
+        2: constructor; assumption.
+        f_equal.
+        now apply IHh1_2 with (i := i0).
+    - apply IHh1_1 with (i := i).
+      1, 3: assumption.
+      clear h1_2. clear IHh1_2.
+      admit.
   Admitted.
     
   Lemma tl_subst_Typ Γ A B u v j :

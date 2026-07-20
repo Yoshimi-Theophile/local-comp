@@ -279,6 +279,7 @@ Proof.
   - cbn in e. cbn. eexists. intuition eauto.
 Qed.
 
+(*
 Lemma conv_st Γ u v s :
     u ≡ v →
     scoping Γ u s ↔ scoping Γ v s.
@@ -294,6 +295,7 @@ Proof.
     + admit.
   - 
 Admitted.
+ *)
 
 (** Better induction principle for [styping] *)
 
@@ -961,6 +963,37 @@ Proof.
     rasimpl in h. eassumption.
 Qed.
 
+Lemma conv_sort s s' i j :
+  Sort s i ≡ Sort s' j →
+  s = s'.
+Admitted.
+
+Lemma type_sort_inv Γ s i A :
+  Γ ⊢ Sort s i : A →
+  A ≡ Sort s (S i).
+Proof.
+  intros h.
+  dependent induction h.
+  all: try solve [discriminate].
+  1: injection H; intros -> ->; constructor.
+  eapply conv_trans.
+  1: apply conv_sym.
+  all: eauto.
+Qed.
+
+Lemma stype_sort_uniq Γ A s s' i j :
+  Γ ⊢ A : Sort s i →
+  Γ ⊢ A : Sort s' j →
+  s = s'.
+Admitted.
+
+Lemma stype_sort_conv Γ A B s s' i j :
+  Γ ⊢ A : Sort s i →
+  Γ ⊢ B : Sort s' j →
+  A ≡ B →
+  s = s'.
+Admitted.
+          
 Lemma svalidity Γ t A :
   swf Γ →
   Γ ⊢ t : A →
@@ -969,17 +1002,74 @@ Lemma svalidity Γ t A :
 Proof.
   intros hΓ h.
   induction h using styping_ind in hΓ |- *.
-  (*
   all: try solve [ eexists ; econstructor ; intuition eauto using styping ].
-  - apply valid_swf. all: assumption.
-  - exists s', j.
-    assert (Sort s' j <[ u..] = Sort s' j) as <- by easy.
-    apply (styping_subst (Γ,,A)).
-    + now apply σstyping_one.
-    + assumption.
-*)
-Admitted.
-
+  - split.
+    + constructor.
+      unfold sc, st.
+      rewrite nth_nth_error, nth_error_map, H.
+      reflexivity.
+    + apply valid_swf.
+      1: assumption.
+      unfold sc, st.
+      rewrite nth_nth_error, nth_error_map, H.
+      reflexivity.
+  - assert (swf (Γ,,s (s, A))) as hΓ'.
+    { econstructor; eassumption. }
+    destruct (IHh1 hΓ) as [h3 [Si h4]].
+    destruct (IHh2 hΓ') as [h5 [Sj h6]].
+    split. 2: eexists; econstructor.
+    constructor.
+    + pose (type_sort_inv _ _ _ _ h4) as h4'.
+      now rewrite <-(conv_sort _ _ _ _ h4').
+    + pose (type_sort_inv _ _ _ _ h6) as h6'.
+      now rewrite <-(conv_sort _ _ _ _ h6').
+  - assert (swf (Γ,,s (s, A))) as hΓ'.
+    { econstructor; eassumption. }
+    destruct (IHh1 hΓ) as [h4 [Si h5]].
+    (*destruct (IHh2 hΓ') as [h6 [Sj h7]].*)
+    destruct (IHh3 hΓ') as [h8 [j' h9]].
+    split. 2: eexists; econstructor; eauto.
+    constructor.
+    + pose (type_sort_inv _ _ _ _ h5) as h5'.
+      now rewrite <-(conv_sort _ _ _ _ h5').
+    + now rewrite (stype_sort_uniq _ _ _ _ _ _ h2 h9).
+  - assert (swf (Γ,,s (s, A))) as hΓ'.
+    { econstructor; eassumption. }
+    destruct (IHh1 hΓ) as [h5 [mij h6]].
+    destruct (IHh2 hΓ) as [h7 [i' h8]].
+    (* destruct (IHh3 hΓ) as [h9 [Si h10]]. *)
+    (* destruct (IHh4 hΓ') as [h11 [Sj h12]]. *)
+    split.
+    + simpl. constructor.
+      * assert (Γ ⊢ Pi s s' i j A B : Sort s' (max i j)) as h13 by now constructor.
+        now rewrite (stype_sort_uniq _ _ _ _ _ _ h13 h6).
+      * now rewrite (stype_sort_uniq _ _ _ _ _ _ h3 h8).
+    + exists j. simpl.
+      assert (Sort s' j = Sort s' j <[ u..]) as -> by easy.
+      apply styping_subst with (Γ := Γ,,s (s, A)).
+      1: apply σstyping_one.
+      2, 3: eauto.
+      now rewrite (stype_sort_uniq _ _ _ _ _ _ h3 h8).
+  - destruct (IHh1 hΓ) as [h3 [i' h4]].
+    destruct (IHh2 hΓ) as [h5 [Si h6]].
+    split. 1: assumption.
+    exists i.
+    now rewrite (stype_sort_conv _ _ _ _ _ _ _ h4 h2 H).
+  - destruct (IHh1 hΓ) as [h7 [Si h8]].
+    destruct (IHh2 hΓ) as [h9 [i0 h10]].
+    destruct (IHh3 hΓ) as [h11 [i1 h12]].
+    destruct (IHh4 hΓ) as [h13 [i2 h14]].
+    destruct (IHh5 hΓ) as [h15 [miSj h16]].
+    destruct (IHh6 hΓ) as [h17 [i3 h18]].
+    split.
+    + constructor.
+    + exists j. simpl.
+      assert (Typ j = Typ j <[ v..]) as -> by easy.
+      apply stype_app with (i := i) (j := S j) (A := A).
+      all: eauto.
+      constructor.
+Qed.
+  
 Lemma tvalidity Γ t A :
   twf Γ →
   Γ ⊨ t : A →

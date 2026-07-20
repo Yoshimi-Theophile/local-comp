@@ -95,11 +95,6 @@ Section Translation.
     all: eauto.
   Qed.
   
-  Lemma conv_sort s s' i j :
-    Sort s i ≡ Sort s' j →
-    s = s'.
-  Admitted.
-  
   Lemma styping_stc Γ t B :
     swf Γ →
     Γ ⊢ t : B →

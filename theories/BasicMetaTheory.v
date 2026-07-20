@@ -297,6 +297,8 @@ Admitted.
 
 (** Better induction principle for [styping] *)
 
+Check styping_ind.
+
 Lemma styping_ind :
   ∀ (P : sctx → term → term → Prop),
     (∀ Γ x A s, nth_error Γ x = Some (s, A) → P Γ (var x) (Nat.add (S x) ⋅ A)) →
@@ -324,15 +326,37 @@ Lemma styping_ind :
       Γ ⊢ B : Sort s i → P Γ B (Sort s i) →
       P Γ t B
     ) →
+    (∀ Γ, P Γ ⊥ (Typ 0)) →
+    (∀ Γ s i u v A,
+      Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
+      Γ ⊢ u : A → P Γ u A →
+      Γ ⊢ v : A → P Γ v A → 
+      P Γ (eqT u v) (Typ i)
+    ) →
+    (∀ Γ s i u A,
+      Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
+      Γ ⊢ u : A → P Γ u A → 
+      P Γ (reflT u) (eqT u u)
+    ) →
+    (∀ Γ s i j u v A P' e pu,
+      Γ ⊢ A : Sort s i → P Γ A (Sort s i) →
+      Γ ⊢ u : A → P Γ u A →
+      Γ ⊢ v : A → P Γ v A →
+      Γ ⊢ e : eqT u v → P Γ e (eqT u v) →
+      Γ ⊢ P' : Pi s S_Typ i (S j) A (Typ j) →
+      P Γ P' (Pi s S_Typ i (S j) A (Typ j)) →
+      Γ ⊢ pu : app s S_Typ P' u → P Γ pu (app s S_Typ P' u) →
+      P Γ (transportT P' u v e pu) (app s S_Typ P' v)
+    ) →
     ∀ Γ t A, Γ ⊢ t : A → P Γ t A.
 Proof.
-  intros P hvar hsort hpi hlam happ hconv.
+  intros P hvar hsort hpi hlam happ hconv hbot heq hrefl htpt.
   fix aux 4. move aux at top.
   intros Γ t A h.
-  destruct h as [| | | | |].
+  destruct h.
   all: try solve [eauto].
-  apply (happ _ _ _ i j A).
-  all: try solve [eauto].
+  1: apply (happ _ _ _ i j A); eauto.
+  apply (htpt _ _ i j _ _ A); eauto.
 Qed.
 
 (** Better induction principle for [ttyping] *)
@@ -402,17 +426,42 @@ Lemma ttyping_ind :
       Γ ⊨ B : Typ i → P Γ B (Typ i) →
       P Γ t B
     ) →
+    (∀ Γ, P Γ ⊥ (Typ 0)) →
+    (∀ Γ i u v A,
+      Γ ⊨ A : Typ i → P Γ A (Typ i) →
+      Γ ⊨ u : A → P Γ u A →
+      Γ ⊨ v : A → P Γ v A → 
+      P Γ (eqT u v) (Typ i)
+    ) →
+    (∀ Γ i u A,
+      Γ ⊨ A : Typ i → P Γ A (Typ i) →
+      Γ ⊨ u : A → P Γ u A → 
+      P Γ (reflT u) (eqT u u)
+    ) →
+    (∀ Γ i j u v A P' e pu,
+      Γ ⊨ A : Typ i → P Γ A (Typ i) →
+      Γ ⊨ u : A → P Γ u A →
+      Γ ⊨ v : A → P Γ v A →
+      Γ ⊨ e : eqT u v → P Γ e (eqT u v) →
+      Γ ⊨ P' : Pi_T i (S j) A (Typ j) →
+      P Γ P' (Pi_T i (S j) A (Typ j)) →
+      Γ ⊨ pu : app_T P' u → P Γ pu (app_T P' u) →
+      P Γ (transportT P' u v e pu) (app_T P' v)
+    ) →
     ∀ Γ t A, Γ ⊨ t : A → P Γ t A.
 Proof.
-  intros P hvar htyp hpi hlam happ hunit htt hSigma hsig hpi1 hpi2 hconv.
+  intros P hvar htyp hpi hlam happ hunit htt hSigma hsig hpi1 hpi2 hconv
+    hbot heq hrefl htpt.
   fix aux 4. move aux at top.
   intros Γ t A h.
-  destruct h as [| | | | | | | | | | |].
+  destruct h.
   all: try solve [eauto].
   - apply (happ _ i j A).
-    all: try solve [eauto].
+    all: eauto.
   - apply (hsig _ i j).
-    all: try solve [eauto].
+    all: eauto.
+  - apply (htpt _ i j _ _ A).
+    all: eauto.
 Qed.
 
 (** Renaming preserves typing *)
@@ -596,6 +645,8 @@ Proof.
   - rasimpl in IHht2.
     econstructor. all: eauto.
     now apply conv_ren.
+  - apply stype_transportT with (i := i) (j := j) (A := ρ ⋅ A).
+    all: eauto.
 Qed.
 
 Lemma ttyping_ren :
@@ -624,6 +675,8 @@ Proof.
   - rasimpl in IHht2.
     econstructor. all: eauto.
     now apply conv_ren.
+  - apply ttype_transportT with (i := i) (j := j) (A := ρ ⋅ A).
+    all: eauto.
 Qed.
 
 (** Substitution preserves typing *)
@@ -793,6 +846,8 @@ Proof.
     cbn in *. econstructor ; eauto using σstyping_up.
   - econstructor. 1,3: eauto.
     eapply conv_subst. eassumption.
+  - eapply stype_transportT.
+    all: eauto. now apply IHht5.
 Qed.
 
 Lemma ttyping_subst Γ Δ σ t A :
@@ -816,6 +871,8 @@ Proof.
     econstructor ; eauto using σttyping_up.
   - econstructor. 1,3: eauto.
     eapply conv_subst. eassumption.
+  - eapply ttype_transportT.
+    all: eauto. now apply IHht5.
 Qed.
 
 (** Validity (or presupposition) *)
@@ -945,7 +1002,12 @@ Proof.
     + apply σttyping_one.
       econstructor. all: eauto.
     + assumption.
-  - eauto. 
+  - eauto.
+  - exists j.
+    assert (Typ j <[ v..] = Typ j) as <- by easy.
+    eapply ttype_app.
+    all: eauto.
+    constructor.
 Qed.
 
 (*

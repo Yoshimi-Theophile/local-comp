@@ -19,3 +19,9 @@ Sigma : term -> (bind term in term) -> term
 sig : term -> (bind term in term) -> term
 pi1 : term -> term
 pi2 : term -> term
+
+bot : term
+
+eqT : term -> term -> term
+reflT : term -> term
+transportT : term -> term -> term -> term -> term -> term

@@ -43,6 +43,8 @@ Notation "Γ ,,,t Δ" :=
 
 (* Typing Notation *)
 
+Notation "⊥" := bot.
+
 Notation Typ := (Sort S_Typ).
 Notation PTyp := (Sort S_PTyp).
 
@@ -90,7 +92,15 @@ Inductive scoping (Γ : scope) : term → sort → Prop :=
     ∀ s s' t u,
       scoping Γ t s' →
       scoping Γ u s →
-      scoping Γ (app s s' t u) s'.
+      scoping Γ (app s s' t u) s'
+
+| scope_bot : scoping Γ ⊥ S_Typ
+| scope_eqT :
+    ∀ u v, scoping Γ (eqT u v) S_Typ
+| scope_reflT :
+    ∀ u, scoping Γ (reflT u) S_Typ
+| scope_transportT :
+    ∀ P u v eq Pu, scoping Γ (transportT P u v eq Pu) S_Typ.
 
 Notation cscoping Γ := (scoping (sc Γ)).
 
@@ -235,6 +245,31 @@ Inductive styping (Γ : sctx) : term → term → Prop :=
       Γ ⊢ B : Sort s i →
       Γ ⊢ t : B
 
+| stype_bot : Γ ⊢ ⊥ : Typ 0
+
+| stype_eqT :
+    ∀ s i u v A,
+      Γ ⊢ A : Sort s i →
+      Γ ⊢ u : A →
+      Γ ⊢ v : A →
+      Γ ⊢ eqT u v : Typ i
+
+| stype_reflT :
+    ∀ s i u A,
+      Γ ⊢ A : Sort s i →
+      Γ ⊢ u : A →
+      Γ ⊢ reflT u : eqT u u
+
+| stype_transportT :
+    ∀ s i j u v A P e pu,
+      Γ ⊢ A : Sort s i →
+      Γ ⊢ u : A →
+      Γ ⊢ v : A →
+      Γ ⊢ e : eqT u v →
+      Γ ⊢ P : Pi s S_Typ i (S j) A (Typ j) →
+      Γ ⊢ pu : app s S_Typ P u →
+      Γ ⊢ transportT P u v e pu : app s S_Typ P v           
+
 where "Γ ⊢ t : A" := (styping Γ t A).
 
 Inductive ttyping (Γ : tctx) : term → term → Prop :=
@@ -310,6 +345,31 @@ Inductive ttyping (Γ : tctx) : term → term → Prop :=
       Γ ⊨ B : Typ i →
       Γ ⊨ t : B
 
+| ttype_bot : Γ ⊨ ⊥ : Typ 0
+
+| ttype_eqT :
+    ∀ i u v A,
+      Γ ⊨ A : Typ i →
+      Γ ⊨ u : A →
+      Γ ⊨ v : A →
+      Γ ⊨ eqT u v : Typ i
+
+| ttype_reflT :
+    ∀ i u A,
+      Γ ⊨ A : Typ i →
+      Γ ⊨ u : A →
+      Γ ⊨ reflT u : eqT u u
+
+| ttype_transportT :
+    ∀ i j u v A P e pu,
+      Γ ⊨ A : Typ i →
+      Γ ⊨ u : A →
+      Γ ⊨ v : A →
+      Γ ⊨ e : eqT u v →
+      Γ ⊨ P : Pi_T i (S j) A (Typ j) →
+      Γ ⊨ pu : app_T P u →
+      Γ ⊨ transportT P u v e pu : app_T P v  
+                
 where "Γ ⊨ t : A" := (ttyping Γ t A).
 
 (** ** Context formation *)
@@ -339,10 +399,12 @@ Hint Resolve conv_beta cong_Pi cong_lam cong_app conv_refl
 : conv.
 
 Hint Resolve stype_var stype_sort stype_Pi stype_lam stype_app
+             stype_bot stype_eqT stype_reflT stype_transportT
   : type.
 
 Hint Resolve ttype_var ttype_typ ttype_Pi ttype_lam ttype_app
              ttype_unit ttype_tt ttype_Sigma ttype_sig ttype_pi1 ttype_pi2
+             ttype_bot ttype_eqT ttype_reflT ttype_transportT
 : type.
 
 Ltac ttconv :=

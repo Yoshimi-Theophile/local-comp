@@ -754,9 +754,20 @@ Section Translation.
     | S_Typ => false
     end.
 
+  Print term.
+  
+  Fixpoint fst_vars t :=
+    match t with
+    | var x => pi1 (var x)
+    | Pi s s' i j A B => Pi s s' i j (fst_vars A) (fst_vars B)
+    | lam s s' A t => lam s s' (fst_vars A) (fst_vars t)
+    | app s s' t u => app s s' (fst_vars t) (fst_vars u)
+    | _ => t
+    end.
+
   Definition Tl_rhs Γ A t :=
     if isPTyp_sc Γ t
-    then app_T ⟦Γ | A⟧ [Γ | t]
+    then app_T ⟦Γ | A⟧ (fst_vars [Γ | t])
     else ⟦Γ | A⟧.
 
   Lemma isPTyp_sc_isPTyp Γ x :
@@ -768,8 +779,6 @@ Section Translation.
     now destruct (nth_error Γ x).
   Qed.
 
-  (* TODO: Tl_rhs isn't quite right *)
-  
   Lemma Tl_typ Γ t A :
     swf Γ →
     Γ ⊢ t : A →
@@ -780,7 +789,8 @@ Section Translation.
     - unfold Tl_rhs. simpl.
       rewrite isPTyp_sc_isPTyp.
       destruct (isPTyp (sc Γ) x) eqn: e.
-      + Check ttype_pi2.
+      + unfold fst_vars.
+        Check ttype_pi2.
   Admitted.
 
   

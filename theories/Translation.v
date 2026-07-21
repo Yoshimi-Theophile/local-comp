@@ -69,6 +69,11 @@ Section Translation.
             app_T [Γ|t] u'
         end
 
+    | ⊥ => tt
+    | eqT _ _ => tt
+    | reflT _ => tt
+    | transportT _ _ _ _ _ => tt
+                   
     | _ => unit (* inaccessible in styping *)                             
     end
 
@@ -249,16 +254,8 @@ Section Translation.
       1: reflexivity.
       destruct s.
       all: rasimpl.
-      + 
-  Admitted.
-
-  (* required for tl_subst_ignore *)
-  (* might require `swf Γ` *)
-  Lemma conv_stype_sort Γ A B s i :
-    A ≡ B →
-    Γ ⊢ A : Sort s i →
-    Γ ⊢ B : Sort s i.
-  Proof.
+      + admit.
+      + admit.
   Admitted.
     
   Lemma tl_subst_ignore Γ t A i σ τ :
@@ -270,6 +267,7 @@ Section Translation.
   Proof.
     intros hΓ h1 h2 h.
     induction h1 using styping_ind in i, σ, τ, hΓ, h2, h |- *.
+    all: try solve [reflexivity].
     - simpl. unfold isPTyp, sc.
       rewrite nth_error_map, H. simpl.
       destruct s.
@@ -357,9 +355,9 @@ Section Translation.
     - apply IHh1_1 with (i := i).
       1, 3: assumption.
       clear h1_2. clear IHh1_2.
-      eapply conv_stype_sort.
-      2: eassumption.
-      now apply conv_sym.
+      destruct (svalidity _ _ _ hΓ h1_1) as [h0 [i' h1]].
+      destruct (stype_sort_conv _ _ _ _ _ _ _ h1 h2 H) as [<- ->].
+      assumption.
   Qed.
     
   Lemma tl_subst_Typ Γ A B u v i j :
@@ -380,19 +378,31 @@ Section Translation.
     - reflexivity.
   Qed.
 
-  Lemma tl_conv Γ u v :
+  Lemma tl_conv Γ u v A :
     swf Γ →
+    Γ ⊢ u : A →
+    Γ ⊢ v : A →
     u ≡ v →
     scoping (sc Γ) u S_PTyp →
     [ sc Γ | u ] ≡ [ sc Γ | v ].
   Proof.
-    intros hΓ h hP.
-    induction h in Γ, hΓ, hP |- *.
+    intros hΓ hu hv h hP.
+    induction h in Γ, A, hu, hv, hΓ, hP |- *.
+    all: try solve [constructor].
     - simpl. destruct s'.
       1: apply scoping_st in hP; discriminate.
       destruct s.
       + eapply conv_trans.
         1: eapply conv_beta.
+        rewrite tl_subst with (Δ := S_Typ :: sc Γ).
+        2: { apply σscoping_one. now inversion hP; subst. }
+        2: apply σscoping_comp_one.
+        2: { inversion hP; subst.
+             inversion H1; subst.
+             eapply scoping_subst.
+             2: eassumption.
+             now apply σscoping_one.
+        }
         admit.
       + eapply conv_trans.
         1: eapply conv_beta.
@@ -405,25 +415,41 @@ Section Translation.
              2: eassumption.
              now apply σscoping_one.
         }
-        (*
-        assert
-            ([S_PTyp :: sc Γ | t] <[ u.. >> tl_tmP (sc Γ)] =
-             [S_PTyp :: sc Γ | t] <[ [ sc Γ | u].. ]) as ->.
-          {
-            change (S_PTyp :: sc Γ) with (sc (Γ,,s (S_PTyp, A))).
-            eapply tl_subst_ignore.
-            2: eassumption.
-            1, 2: econstructor; eassumption.
-            intros x hx.
-            destruct x.
-            1: reflexivity.
-            change ((u .. >> tl_tmP (sc Γ)) (S x)) with [sc Γ | var x ].
-            simpl. inversion hx; subst.
-            simpl in H0.
-            unfold isPTyp. rewrite H0.
-            reflexivity.
-          }
-         *)
+        admit.
+    - simpl. destruct s'.
+      1: constructor.
+      destruct s.
+      + constructor.
+        1: constructor.
+        change (S_Typ :: sc Γ) with (sc (Γ,,s (S_Typ, A0))).
+        apply IHh2 with (A := PTyp j).
+        * apply swf_cons with (i := i).
+          1: assumption.
+          admit.
+        * admit.
+        * admit.
+        * admit.
+      + admit.
+    - simpl. destruct s'.
+      1: constructor.
+      destruct s.
+      + constructor.
+        1: constructor.
+        admit.
+      + admit.
+    - simpl. destruct s'.
+      1: constructor.
+      destruct s.
+      + constructor.
+        2: constructor.
+        admit.
+      + constructor.
+        all: admit.
+    - apply conv_sym.
+      apply IHh with (A := A).
+      1-3: assumption.
+      admit.
+    - admit.
   Admitted.
 
   (* main lemma for first translation *)
@@ -436,6 +462,7 @@ Section Translation.
   Proof.
     intros hΓ h hP.
     induction h using styping_ind in hΓ, hP |- *.
+    all: try solve [apply scoping_st in hP; discriminate].
     - simpl. unfold isPTyp, sc at 1.
       rewrite nth_error_map, H.
       destruct s; simpl.
@@ -615,10 +642,13 @@ Section Translation.
       apply scoping_st in hP.
       apply (ttype_conv _ i [sc Γ|A]).
       1: now apply IHh1.
-      + apply tl_conv.
+      + apply tl_conv with (A := Sort s i).
         all: try assumption.
-        rewrite <-hP.
-        now apply styping_scoping_stc_bw.
+        * destruct (svalidity _ _ _ hΓ h1) as [_ [i' H0]].
+          destruct (stype_sort_conv _ _ _ _ _ _ _ H0 h2 H) as [<- ->].
+          assumption.
+        * rewrite <-hP.
+          now apply styping_scoping_stc_bw.
       + rewrite (styping_stc _ _ _ hΓ (stype_conv _ _ _ _ _ _ h1 H h2)) in hP.
         rewrite (styping_stc _ _ _ hΓ h2) in hP.
         simpl in hP; subst.
@@ -697,6 +727,15 @@ Section Translation.
         | S_PTyp => app_T ⟦Γ | t⟧ (sig [Γ | u] ⟦Γ | u⟧)
         end
 
+    | ⊥ => ⊥
+
+    | eqT u v => eqT ⟦Γ | u⟧ ⟦Γ | v⟧
+
+    | reflT u => reflT ⟦Γ | u⟧
+
+    | transportT P u v e pu =>
+        transportT ⟦Γ | P⟧ ⟦Γ | u⟧ ⟦Γ | v⟧ ⟦Γ | e⟧ ⟦Γ | pu⟧
+
     | _ => unit (* inaccessible in styping *)
     end
   where "⟦ Γ | t ⟧" := (Tl_tm Γ t).
@@ -728,6 +767,8 @@ Section Translation.
     rewrite nth_nth_error.
     now destruct (nth_error Γ x).
   Qed.
+
+  (* TODO: Tl_rhs isn't quite right *)
   
   Lemma Tl_typ Γ t A :
     swf Γ →
@@ -736,8 +777,10 @@ Section Translation.
   Proof.
     intros hΓ h.
     induction h using styping_ind in hΓ |- *.
-    - simpl.
+    - unfold Tl_rhs. simpl.
+      rewrite isPTyp_sc_isPTyp.
       destruct (isPTyp (sc Γ) x) eqn: e.
+      + Check ttype_pi2.
   Admitted.
 
   

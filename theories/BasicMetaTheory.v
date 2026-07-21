@@ -299,8 +299,6 @@ Admitted.
 
 (** Better induction principle for [styping] *)
 
-Check styping_ind.
-
 Lemma styping_ind :
   ∀ (P : sctx → term → term → Prop),
     (∀ Γ x A s, nth_error Γ x = Some (s, A) → P Γ (var x) (Nat.add (S x) ⋅ A)) →
@@ -991,7 +989,7 @@ Lemma stype_sort_conv Γ A B s s' i j :
   Γ ⊢ A : Sort s i →
   Γ ⊢ B : Sort s' j →
   A ≡ B →
-  s = s'.
+  s = s' ∧ i = j.
 Admitted.
           
 Lemma svalidity Γ t A :
@@ -1054,7 +1052,8 @@ Proof.
     destruct (IHh2 hΓ) as [h5 [Si h6]].
     split. 1: assumption.
     exists i.
-    now rewrite (stype_sort_conv _ _ _ _ _ _ _ h4 h2 H).
+    destruct (stype_sort_conv _ _ _ _ _ _ _ h4 h2 H).
+    now rewrite H0.
   - destruct (IHh1 hΓ) as [h7 [Si h8]].
     destruct (IHh2 hΓ) as [h9 [i0 h10]].
     destruct (IHh3 hΓ) as [h11 [i1 h12]].
